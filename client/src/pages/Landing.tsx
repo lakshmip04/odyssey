@@ -1,8 +1,8 @@
-import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import ThreeDPhotoCarousel from '../components/ThreeDPhotoCarousel'
 import { RetroGrid } from '../components/ui/retro-grid'
+import TrueFocus from '../components/TrueFocus'
 
 const Landing = () => {
   return (
@@ -15,9 +15,17 @@ const Landing = () => {
           <div className="relative z-10 flex flex-col items-center justify-center min-h-[900px] md:min-h-[1000px] py-8 md:py-12">
             {/* Title Section */}
             <div className="text-center px-4 mb-2 md:mb-6">
-              <h1 className="text-5xl md:text-7xl font-bold mb-3 md:mb-4 bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-transparent dark:from-white dark:to-slate-900/10">
-                Welcome to Odyssey
-              </h1>
+              <div className="mb-3 md:mb-4">
+                <TrueFocus
+                  sentence="Welcome to|Odyssey"
+                  separator="|"
+                  manualMode={false}
+                  blurAmount={5}
+                  borderColor="#3b82f6"
+                  animationDuration={2}
+                  pauseBetweenAnimations={0.5}
+                />
+              </div>
               <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-2 md:mb-3 max-w-2xl mx-auto">
                 Plan your perfect journey, track your adventures, and share your
                 travel stories with the world.
