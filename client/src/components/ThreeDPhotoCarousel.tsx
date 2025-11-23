@@ -50,7 +50,7 @@ export default function ThreeDPhotoCarousel() {
   })
 
   return (
-    <div className="relative h-[600px] md:h-[700px] w-full overflow-hidden">
+    <div className="relative h-[750px] md:h-[850px] w-full overflow-hidden">
       <div
         className="flex h-full items-center justify-center"
         style={{
@@ -87,7 +87,7 @@ export default function ThreeDPhotoCarousel() {
                 <img
                   src={url}
                   alt={`Travel destination ${i + 1}`}
-                  className="pointer-events-none h-64 md:h-80 w-full rounded-lg object-cover shadow-2xl"
+                  className="pointer-events-none h-80 md:h-96 w-full rounded-lg object-cover shadow-2xl"
                   loading="lazy"
                 />
               </div>

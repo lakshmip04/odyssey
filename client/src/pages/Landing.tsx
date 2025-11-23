@@ -14,8 +14,8 @@ const Landing = () => {
           <RetroGrid />
           <div className="relative z-10 flex flex-col items-center justify-center min-h-[900px] md:min-h-[1000px] py-8 md:py-12">
             {/* Title Section */}
-            <div className="text-center px-4 mb-2 md:mb-6">
-              <div className="mb-3 md:mb-4">
+            <div className="text-center px-4 mb-0">
+              <div className="mb-1 md:mb-2">
                 <TrueFocus
                   sentence="Welcome to|Odyssey"
                   separator="|"
@@ -26,7 +26,7 @@ const Landing = () => {
                   pauseBetweenAnimations={0.5}
                 />
               </div>
-              <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-2 md:mb-3 max-w-2xl mx-auto">
+              <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-0 max-w-2xl mx-auto">
                 Plan your perfect journey, track your adventures, and share your
                 travel stories with the world.
               </p>
