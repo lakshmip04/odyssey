@@ -1,53 +1,35 @@
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-import { Meteors } from '../components/ui/meteors'
-import { Button } from '../components/ui/button'
 import ThreeDPhotoCarousel from '../components/ThreeDPhotoCarousel'
+import { RetroGrid } from '../components/ui/retro-grid'
 
 const Landing = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
       <Navbar />
       <main className="flex-grow">
-        {/* Hero Section with Meteors */}
-        <div className="relative h-[600px] w-full overflow-hidden flex items-center justify-center">
-          <Meteors number={30} />
-          <div className="relative z-10 text-center px-4">
-            <h1 className="text-6xl md:text-7xl font-bold mb-6 bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-transparent dark:from-white dark:to-slate-900/10">
-              Welcome to Odyssey
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
-              Plan your perfect journey, track your adventures, and share your
-              travel stories with the world.
-            </p>
-            <div className="flex justify-center space-x-4">
-              <Link to="/signup">
-                <Button size="lg" className="text-lg px-8 py-6">
-                  Get Started
-                </Button>
-              </Link>
-              <Link to="/login">
-                <Button variant="outline" size="lg" className="text-lg px-8 py-6">
-                  Sign In
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* 3D Photo Carousel Section */}
-        <div className="py-16 bg-gradient-to-b from-transparent to-gray-100/50 dark:to-gray-800/50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-b from-black to-gray-600 bg-clip-text text-transparent dark:from-white dark:to-gray-400">
-                Explore Amazing Destinations
-              </h2>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Drag to rotate and discover breathtaking travel destinations from around the world
+        {/* Hero Section with Carousel and RetroGrid */}
+        <div className="relative min-h-[900px] md:min-h-[1000px] w-full overflow-hidden bg-background">
+          <RetroGrid />
+          <div className="relative z-10 flex flex-col items-center justify-center min-h-[900px] md:min-h-[1000px] py-8 md:py-12">
+            {/* Title Section */}
+            <div className="text-center px-4 mb-2 md:mb-6">
+              <h1 className="text-5xl md:text-7xl font-bold mb-3 md:mb-4 bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-transparent dark:from-white dark:to-slate-900/10">
+                Welcome to Odyssey
+              </h1>
+              <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-2 md:mb-3 max-w-2xl mx-auto">
+                Plan your perfect journey, track your adventures, and share your
+                travel stories with the world.
               </p>
             </div>
-            <ThreeDPhotoCarousel />
+            
+            {/* 3D Photo Carousel */}
+            <div className="w-full px-4 mb-4 md:mb-6">
+              <ThreeDPhotoCarousel />
+            </div>
+
+           
           </div>
         </div>
 

@@ -26,11 +26,11 @@ const IMGS = [
 
 export default function ThreeDPhotoCarousel() {
   const isScreenSizeSm = useMediaQuery("(max-width: 640px)")
-  const cylinderWidth = isScreenSizeSm ? 2000 : 3500
+  const cylinderWidth = isScreenSizeSm ? 2500 : 4500
   const faceCount = IMGS.length
   const faceWidth = cylinderWidth / faceCount
   const dragFactor = 0.1
-  const radius = cylinderWidth / (8 * Math.PI)
+  const radius = cylinderWidth / (7 * Math.PI)
   const rotation = useMotionValue(0)
   const controls = useAnimation()
 
@@ -50,11 +50,11 @@ export default function ThreeDPhotoCarousel() {
   })
 
   return (
-    <div className="relative h-[500px] w-full overflow-hidden bg-gradient-to-b from-transparent via-gray-50/50 to-transparent dark:via-gray-900/50">
+    <div className="relative h-[600px] md:h-[700px] w-full overflow-hidden">
       <div
         className="flex h-full items-center justify-center"
         style={{
-          perspective: "1000px",
+          perspective: "1500px",
           transformStyle: "preserve-3d",
           transform: "rotateX(0deg)",
         }}
@@ -87,7 +87,7 @@ export default function ThreeDPhotoCarousel() {
                 <img
                   src={url}
                   alt={`Travel destination ${i + 1}`}
-                  className="pointer-events-none h-32 w-full rounded-md object-cover shadow-lg"
+                  className="pointer-events-none h-64 md:h-80 w-full rounded-lg object-cover shadow-2xl"
                   loading="lazy"
                 />
               </div>

@@ -56,9 +56,18 @@ export default {
             opacity: "0",
           },
         },
+        "retro-grid": {
+          "0%": {
+            transform: "translateY(0) rotateX(var(--angle))",
+          },
+          "100%": {
+            transform: "translateY(var(--grid-size)) rotateX(var(--angle))",
+          },
+        },
       },
       animation: {
         "meteor-effect": "meteor-effect linear infinite",
+        "retro-grid": "retro-grid 20s linear infinite",
       },
     },
   },

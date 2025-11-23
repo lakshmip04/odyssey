@@ -26,7 +26,7 @@ export function RetroGrid({
       {...props}
     >
       <div
-        className="absolute inset-0 [transform:rotateX(var(--angle))]"
+        className="absolute inset-0 [transform:rotateX(var(--angle))] dark:[--color:rgba(255,255,255,0.1)] animate-retro-grid"
         style={{
           backgroundImage: `
             linear-gradient(var(--color) 1px, transparent 1px),
