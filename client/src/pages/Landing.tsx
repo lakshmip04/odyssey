@@ -18,7 +18,7 @@ const Landing = () => {
     if (screenSize.lessThan('md')) {
       return { width: 200, height: 150 }
     }
-    return { width: 300, height: 200 }
+    return { width: 400, height: 300 }
   }
 
   const { width, height } = getCarouselDimensions()
@@ -28,50 +28,49 @@ const Landing = () => {
     {
       id: '1',
       type: 'image',
-      src: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=600&fit=crop&auto=format',
-      alt: 'Planning trip with laptop and maps',
+      src: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
+      alt: 'Travel planning with map and laptop',
     },
     {
       id: '2',
       type: 'image',
-      src: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800&h=600&fit=crop&auto=format',
-      alt: 'Person holding map',
-    },
+      src: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+      alt: 'Traveler holding a map outdoors',
+    }
+    ,
+    
     {
       id: '3',
       type: 'image',
-      src: 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=600&fit=crop&auto=format',
-      alt: 'Travel planning text',
+      src: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80',
+      alt: 'Young couple discussing trip using map',
     },
-  ]
-
+  ];
+  
+  
+  
   // Travel Guide images - extracted from provided Unsplash URLs
   const travelGuideItems: CarouselItem[] = [
     {
       id: '1',
       type: 'image',
-      src: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop&auto=format',
-      alt: 'Travel guide on phone',
+      src: 'https://images.unsplash.com/photo-1495567720989-cebdbdd97913?ixlib=rb-4.0.3&q=80&fm=jpg&w=1200&fit=crop',
+      alt: 'Phone and travel gear on wooden table',
     },
     {
       id: '2',
       type: 'image',
-      src: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=600&fit=crop&auto=format',
-      alt: 'Woman with camera and clipboard',
+      src: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?ixlib=rb-4.0.3&q=80&fm=jpg&w=1200&fit=crop',
+      alt: 'Woman preparing camera for travel guide work',
     },
     {
       id: '3',
       type: 'image',
-      src: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop&auto=format',
-      alt: 'Person holding phone',
+      src: 'https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?ixlib=rb-4.0.3&q=80&fm=jpg&w=1200&fit=crop',
+      alt: 'Traveller using smartphone to navigate map',
     },
-    {
-      id: '4',
-      type: 'image',
-      src: 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=600&fit=crop&auto=format',
-      alt: 'Compass app in desert',
-    },
-  ]
+  ];
+  
 
   // Track Visits images - extracted from provided Unsplash URLs
   const trackVisitsItems: CarouselItem[] = [
@@ -82,17 +81,19 @@ const Landing = () => {
       alt: 'Person with phone tracking visits',
     },
     {
-      id: '2',
-      type: 'image',
-      src: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=600&fit=crop&auto=format',
-      alt: 'Map, camera and watch on table',
-    },
+    id: '2',
+    type: 'image',
+    src: 'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?ixlib=rb-4.0.3&q=80&fm=jpg&w=1200&fit=crop',
+    alt: 'Map camera watch on a table symbolising visited places',
+  }
+    ,
     {
       id: '3',
       type: 'image',
-      src: 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=600&fit=crop&auto=format',
-      alt: 'Trip planning with map',
+      src: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+      alt: 'Flat lay of maps, notebook and travel accessories',
     },
+    
   ]
 
   return (
@@ -141,7 +142,7 @@ const Landing = () => {
           <div className="max-w-7xl mx-auto w-full">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Plan Your Trip */}
-              <div className="text-center p-6 rounded-lg">
+              <div className="text-center p-8 rounded-lg hover:scale-105 transition-all duration-500 bg-[#1F2937]">
                 <div className="flex justify-center mb-4">
                   <BoxCarousel
                     ref={planTripCarouselRef}
@@ -155,7 +156,6 @@ const Landing = () => {
                     perspective={1000}
                   />
                 </div>
-                <div className="text-4xl mb-4">🗺️</div>
                 <h3 className="text-xl font-semibold mb-2 text-white">Plan Your Trip</h3>
                 <p className="text-gray-300">
                   Create detailed itineraries and explore destinations on an
@@ -164,7 +164,7 @@ const Landing = () => {
               </div>
 
               {/* Travel Guide */}
-              <div className="text-center p-6 rounded-lg">
+              <div className="text-center p-8 rounded-lg hover:scale-105 transition-all duration-500 bg-[#1F2937]">
                 <div className="flex justify-center mb-4">
                   <BoxCarousel
                     ref={travelGuideCarouselRef}
@@ -178,7 +178,6 @@ const Landing = () => {
                     perspective={1000}
                   />
                 </div>
-                <div className="text-4xl mb-4">📖</div>
                 <h3 className="text-xl font-semibold mb-2 text-white">Travel Guide</h3>
                 <p className="text-gray-300">
                   Access comprehensive travel guides, tips, and recommendations
@@ -187,7 +186,7 @@ const Landing = () => {
               </div>
 
               {/* Track Visits */}
-              <div className="text-center p-6 rounded-lg">
+              <div className="text-center p-8 rounded-lg hover:scale-105 transition-all duration-500 bg-[#1F2937]">
                 <div className="flex justify-center mb-4">
                   <BoxCarousel
                     ref={trackVisitsCarouselRef}
@@ -201,7 +200,6 @@ const Landing = () => {
                     perspective={1000}
                   />
                 </div>
-                <div className="text-4xl mb-4">✈️</div>
                 <h3 className="text-xl font-semibold mb-2 text-white">Track Visits</h3>
                 <p className="text-gray-300">
                   Build your travel passport and keep track of places you've

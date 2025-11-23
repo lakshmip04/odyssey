@@ -20,8 +20,8 @@ export const MagicCard = ({ children, className, gradientColor = "#262626" }: Ma
         } as React.CSSProperties
       }
     >
-      <div className="relative z-10">{children}</div>
-      <div className="pointer-events-none absolute -inset-px opacity-0 transition duration-300 group-hover:opacity-100">
+      <div className="relative z-20">{children}</div>
+      <div className="pointer-events-none absolute -inset-px opacity-0 transition duration-300 group-hover:opacity-100 z-0">
         <div
           className="absolute inset-0"
           style={{
