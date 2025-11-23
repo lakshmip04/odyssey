@@ -3,6 +3,7 @@ import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import { Meteors } from '../components/ui/meteors'
 import { Button } from '../components/ui/button'
+import ThreeDPhotoCarousel from '../components/ThreeDPhotoCarousel'
 
 const Landing = () => {
   return (
@@ -32,6 +33,21 @@ const Landing = () => {
                 </Button>
               </Link>
             </div>
+          </div>
+        </div>
+
+        {/* 3D Photo Carousel Section */}
+        <div className="py-16 bg-gradient-to-b from-transparent to-gray-100/50 dark:to-gray-800/50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-b from-black to-gray-600 bg-clip-text text-transparent dark:from-white dark:to-gray-400">
+                Explore Amazing Destinations
+              </h2>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                Drag to rotate and discover breathtaking travel destinations from around the world
+              </p>
+            </div>
+            <ThreeDPhotoCarousel />
           </div>
         </div>
 
