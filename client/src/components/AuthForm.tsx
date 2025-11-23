@@ -1,4 +1,7 @@
 import { useState, FormEvent } from 'react'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
+import { Button } from './ui/button'
 
 interface AuthFormProps {
   mode: 'login' | 'signup'
@@ -24,43 +27,34 @@ const AuthForm = ({ mode, onSubmit, isLoading = false }: AuthFormProps) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-          Email
-        </label>
-        <input
+      <div className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
           id="email"
           type="email"
+          placeholder="name@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-          Password
-        </label>
-        <input
+      <div className="grid gap-2">
+        <Label htmlFor="password">Password</Label>
+        <Input
           id="password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
           minLength={6}
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
       {error && (
-        <div className="text-red-600 text-sm">{error}</div>
+        <div className="text-destructive text-sm">{error}</div>
       )}
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-      >
+      <Button type="submit" disabled={isLoading} className="w-full">
         {isLoading ? 'Loading...' : mode === 'login' ? 'Sign In' : 'Sign Up'}
-      </button>
+      </Button>
     </form>
   )
 }
