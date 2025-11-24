@@ -103,44 +103,115 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signUp = async (email: string, password: string, userData?: { name?: string; country?: string; dob?: string }) => {
     if (isSupabaseConfigured) {
-      // Sign up the user
+      // Sign up the user with metadata (this will be stored in auth.users.raw_user_meta_data)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name: userData?.name || null,
+            country: userData?.country || null,
+            dob: userData?.dob || null,
+          }
+        }
       })
       if (authError) throw authError
 
-      // If user data is provided and signup was successful, store it in profiles table
-      if (userData && authData.user) {
-        try {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: authData.user.id,
-              email: email,
-              name: userData.name || null,
-              country: userData.country || null,
-              dob: userData.dob || null,
-            })
+      if (!authData.user) {
+        throw new Error('User creation failed - no user data returned')
+      }
 
-          if (profileError) {
-            // If profiles table doesn't exist or there's an error, try storing in user metadata as fallback
-            console.warn('Could not save to profiles table:', profileError)
-            // Update user metadata as fallback
-            const { error: metadataError } = await supabase.auth.updateUser({
-              data: {
-                name: userData.name,
-                country: userData.country,
-                dob: userData.dob,
+      console.log('✅ User created:', authData.user.id)
+      console.log('User metadata:', authData.user.user_metadata)
+
+      // Wait for the session to be established (important for RLS)
+      // Check if we have a session
+      let session = authData.session
+      if (!session) {
+        // Wait a bit and check again
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        const { data: { session: newSession } } = await supabase.auth.getSession()
+        session = newSession
+      }
+
+      // Try to create/update profile
+      // The trigger should handle this, but we'll also do it client-side as backup
+      if (authData.user) {
+        try {
+          // Wait a moment for trigger to potentially run first
+          await new Promise(resolve => setTimeout(resolve, 1500))
+          
+          const profileData = {
+            id: authData.user.id,
+            email: email,
+            name: userData?.name || null,
+            country: userData?.country || null,
+            dob: userData?.dob || null,
+          }
+
+          console.log('Attempting to create profile:', profileData)
+          console.log('Current session:', session ? 'Active' : 'No session')
+
+          // Try insert first
+          const { data: insertData, error: insertError } = await supabase
+            .from('profiles')
+            .insert(profileData)
+            .select()
+
+          if (insertError) {
+            // If insert fails, try update (profile might exist from trigger)
+            console.log('Insert failed, trying update:', insertError.message)
+            console.log('Error code:', insertError.code)
+            
+            const { data: updateData, error: updateError } = await supabase
+              .from('profiles')
+              .update({
+                email: email,
+                name: userData?.name || null,
+                country: userData?.country || null,
+                dob: userData?.dob || null,
+              })
+              .eq('id', authData.user.id)
+              .select()
+
+            if (updateError) {
+              console.error('❌ Profile creation/update failed:', updateError)
+              console.error('Error details:', {
+                message: updateError.message,
+                code: updateError.code,
+                details: updateError.details,
+                hint: updateError.hint
+              })
+              // Check if profile exists (maybe trigger created it)
+              const { data: existingProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', authData.user.id)
+                .single()
+              
+              if (existingProfile) {
+                console.log('✅ Profile exists (created by trigger):', existingProfile)
+              } else {
+                console.warn('⚠️ Profile does not exist - trigger may not have run')
               }
-            })
-            if (metadataError) {
-              console.warn('Could not save to user metadata:', metadataError)
+            } else {
+              console.log('✅ Profile updated successfully:', updateData)
             }
+          } else {
+            console.log('✅ Profile created successfully:', insertData)
           }
         } catch (error) {
-          // Log error but don't fail signup if profile creation fails
-          console.error('Error creating user profile:', error)
+          console.error('❌ Error creating user profile:', error)
+          // Check if profile exists anyway
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authData.user.id)
+            .single()
+          
+          if (existingProfile) {
+            console.log('✅ Profile exists (created by trigger):', existingProfile)
+          }
         }
       }
       // User state will be updated via onAuthStateChange listener

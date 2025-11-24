@@ -16,7 +16,7 @@ import { Stepper } from '../components/ui/stepper'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Button } from '../components/ui/button'
-import { CheckCircle2, User, Globe, Calendar, Mail, Phone, Lock, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react'
+import { CheckCircle2, User, Globe, Calendar, Mail, Lock, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { RetroGrid } from '../components/ui/retro-grid'
 
@@ -40,18 +40,14 @@ const Signup = () => {
   const [country, setCountry] = useState('')
   const [dob, setDob] = useState('')
 
-  // Step 2: Contact Information
-  const [emailOrPhone, setEmailOrPhone] = useState('')
-  const [isEmail, setIsEmail] = useState(true)
-  const [otp, setOtp] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
-  const [otpVerified, setOtpVerified] = useState(false)
+  // Step 2: Email
+  const [email, setEmail] = useState('')
 
   // Step 3: Password
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  const steps = ['Personal Info', 'Contact & OTP', 'Password', 'Complete']
+  const steps = ['Personal Info', 'Email', 'Password', 'Complete']
 
   const validateStep1 = () => {
     if (!name.trim()) {
@@ -70,49 +66,15 @@ const Signup = () => {
   }
 
   const validateStep2 = () => {
-    if (!emailOrPhone.trim()) {
-      setError('Email or phone number is required')
+    if (!email.trim()) {
+      setError('Email is required')
       return false
     }
     
-    // Check if it's email or phone
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    const phoneRegex = /^\+?[\d\s-()]+$/
-    
-    if (emailRegex.test(emailOrPhone)) {
-      setIsEmail(true)
-    } else if (phoneRegex.test(emailOrPhone)) {
-      setIsEmail(false)
-    } else {
-      setError('Please enter a valid email or phone number')
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address')
       return false
-    }
-
-    if (!otpSent) {
-      // In a real app, you would send OTP here
-      // For now, we'll simulate it
-      setOtpSent(true)
-      setError(null)
-      // Simulate OTP (in production, this would come from your backend)
-      console.log('OTP sent to:', emailOrPhone)
-      return false
-    }
-
-    if (!otpVerified) {
-      if (!otp.trim()) {
-        setError('Please enter the OTP')
-        return false
-      }
-      // In a real app, you would verify OTP here
-      // For demo purposes, accept any 6-digit OTP
-      if (otp.length === 6 && /^\d+$/.test(otp)) {
-        setOtpVerified(true)
-        setError(null)
-        return true
-      } else {
-        setError('Please enter a valid 6-digit OTP')
-        return false
-      }
     }
 
     return true
@@ -157,8 +119,6 @@ const Signup = () => {
   const handleSubmit = async () => {
     setIsLoading(true)
     try {
-      // Use email for Supabase signup (if phone, you'd need to handle it differently)
-      const email = isEmail ? emailOrPhone : `${emailOrPhone.replace(/\D/g, '')}@temp.odyssey.com`
       await signUp(email, password, {
         name,
         country,
@@ -178,15 +138,6 @@ const Signup = () => {
       setCurrentStep(currentStep - 1)
       setError(null)
     }
-  }
-
-  const handleResendOtp = () => {
-    setOtpSent(false)
-    setOtpVerified(false)
-    setOtp('')
-    // In a real app, resend OTP
-    console.log('OTP resent to:', emailOrPhone)
-    setOtpSent(true)
   }
 
   const renderStepContent = () => {
@@ -262,83 +213,33 @@ const Signup = () => {
             transition={{ duration: 0.3 }}
             className="space-y-5"
           >
-            {!otpSent ? (
-              <>
-                <motion.div
-                  initial={{ scale: 0.95, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="mb-4 p-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-xl border border-primary/20 backdrop-blur-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    <p className="text-sm font-semibold text-primary">
-                      Welcome, {name}! 👋
-                    </p>
-                  </div>
-                </motion.div>
-                <div className="grid gap-3">
-                  <Label htmlFor="emailOrPhone" className="flex items-center gap-2 text-sm font-semibold">
-                    {isEmail ? <Mail className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
-                    Email or Phone Number
-                  </Label>
-                  <Input
-                    id="emailOrPhone"
-                    type="text"
-                    placeholder="name@example.com or +1234567890"
-                    value={emailOrPhone}
-                    onChange={(e) => setEmailOrPhone(e.target.value)}
-                    className="h-11 transition-all focus:ring-2 focus:ring-primary/20"
-                    required
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <motion.div
-                  initial={{ scale: 0.95, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="mb-4 p-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-xl border border-primary/20 backdrop-blur-sm"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    <p className="text-sm font-semibold text-primary">
-                      Welcome, {name}! 👋
-                    </p>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2 ml-7">
-                    OTP sent to {emailOrPhone}
-                  </p>
-                </motion.div>
-                <div className="grid gap-3">
-                  <Label htmlFor="otp" className="flex items-center gap-2 text-sm font-semibold">
-                    <Lock className="w-4 h-4" />
-                    Enter OTP
-                  </Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    placeholder="000000"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    maxLength={6}
-                    required
-                    className="text-center text-2xl tracking-widest h-14 font-mono transition-all focus:ring-2 focus:ring-primary/20"
-                  />
-                  <div className="flex justify-between items-center text-xs">
-                    <button
-                      type="button"
-                      onClick={handleResendOtp}
-                      className="text-primary hover:underline font-medium transition-colors"
-                    >
-                      Resend OTP
-                    </button>
-                    <span className="text-muted-foreground font-mono">
-                      {otp.length}/6
-                    </span>
-                  </div>
-                </div>
-              </>
-            )}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="mb-4 p-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-xl border border-primary/20 backdrop-blur-sm"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <p className="text-sm font-semibold text-primary">
+                  Welcome, {name}! 👋
+                </p>
+              </div>
+            </motion.div>
+            <div className="grid gap-3">
+              <Label htmlFor="email" className="flex items-center gap-2 text-sm font-semibold">
+                <Mail className="w-4 h-4" />
+                Email Address
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-11 transition-all focus:ring-2 focus:ring-primary/20"
+                required
+              />
+            </div>
           </motion.div>
         )
 
@@ -525,8 +426,6 @@ const Signup = () => {
                     >
                       {isLoading
                         ? 'Loading...'
-                        : currentStep === 1 && !otpVerified
-                        ? 'Send OTP'
                         : currentStep === 2
                         ? 'Create Account'
                         : 'Next'}
