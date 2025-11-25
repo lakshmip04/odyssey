@@ -103,10 +103,14 @@ CREATE TABLE IF NOT EXISTS public.itineraries (
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name text NOT NULL,
   location text NOT NULL,
+  country text NULL,
+  state text NULL,
   start_date date NULL,
   end_date date NULL,
   description text NULL,
   is_smart_planned boolean NOT NULL DEFAULT false,
+  is_completed boolean NOT NULL DEFAULT false,
+  completed_at timestamp with time zone NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT itineraries_pkey PRIMARY KEY (id)
@@ -218,4 +222,57 @@ CREATE INDEX IF NOT EXISTS idx_itineraries_user_id ON public.itineraries(user_id
 CREATE INDEX IF NOT EXISTS idx_itineraries_created_at ON public.itineraries(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_itinerary_items_itinerary_id ON public.itinerary_items(itinerary_id);
 CREATE INDEX IF NOT EXISTS idx_itinerary_items_order_index ON public.itinerary_items(itinerary_id, order_index);
+
+-- Create travel_journal_entries table for Fog of War and Travel Journal
+CREATE TABLE IF NOT EXISTS public.travel_journal_entries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  site_id text NULL,
+  site_name text NOT NULL,
+  location_lat numeric(10, 7) NOT NULL,
+  location_lng numeric(10, 7) NOT NULL,
+  location_name text NULL,
+  country text NULL,
+  visited_at timestamp with time zone NOT NULL DEFAULT now(),
+  notes text NULL,
+  photos text[] NULL,
+  ai_translations jsonb NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT travel_journal_entries_pkey PRIMARY KEY (id)
+) TABLESPACE pg_default;
+
+-- Enable Row Level Security for travel_journal_entries
+ALTER TABLE public.travel_journal_entries ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view own journal entries" ON public.travel_journal_entries;
+DROP POLICY IF EXISTS "Users can insert own journal entries" ON public.travel_journal_entries;
+DROP POLICY IF EXISTS "Users can update own journal entries" ON public.travel_journal_entries;
+DROP POLICY IF EXISTS "Users can delete own journal entries" ON public.travel_journal_entries;
+
+-- Policies for travel_journal_entries
+CREATE POLICY "Users can view own journal entries" ON public.travel_journal_entries
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own journal entries" ON public.travel_journal_entries
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own journal entries" ON public.travel_journal_entries
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own journal entries" ON public.travel_journal_entries
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Create trigger to update updated_at for travel_journal_entries
+DROP TRIGGER IF EXISTS update_travel_journal_entries_updated_at ON public.travel_journal_entries;
+CREATE TRIGGER update_travel_journal_entries_updated_at
+  BEFORE UPDATE ON public.travel_journal_entries
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Create indexes for travel_journal_entries
+CREATE INDEX IF NOT EXISTS idx_travel_journal_entries_user_id ON public.travel_journal_entries(user_id);
+CREATE INDEX IF NOT EXISTS idx_travel_journal_entries_visited_at ON public.travel_journal_entries(visited_at DESC);
+CREATE INDEX IF NOT EXISTS idx_travel_journal_entries_location ON public.travel_journal_entries(location_lat, location_lng);
 
