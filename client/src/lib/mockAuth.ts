@@ -1,6 +1,6 @@
 // Mock authentication system for frontend development without Supabase
 
-interface MockUser {
+export interface MockUser {
   id: string
   email: string
   name?: string
@@ -55,7 +55,7 @@ const setMockSession = (user: MockUser | null): void => {
 }
 
 // Mock sign up
-export const mockSignUp = async (email: string, password: string, userData?: {
+export const mockSignUp = async (email: string, _password: string, userData?: {
   name?: string
   country?: string
   dob?: string
@@ -92,7 +92,7 @@ export const mockSignUp = async (email: string, password: string, userData?: {
 }
 
 // Mock sign in
-export const mockSignIn = async (email: string, password: string): Promise<MockUser> => {
+export const mockSignIn = async (email: string, _password: string): Promise<MockUser> => {
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 500))
 

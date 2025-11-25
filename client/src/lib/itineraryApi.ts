@@ -6,10 +6,14 @@ export interface Itinerary {
   user_id: string
   name: string
   location: string
+  country?: string
+  state?: string
   start_date?: string
   end_date?: string
   description?: string
   is_smart_planned: boolean
+  is_completed: boolean
+  completed_at?: string
   created_at: string
   updated_at: string
   items?: ItineraryItem[]
@@ -38,6 +42,8 @@ export interface ItineraryItem {
 export interface CreateItineraryInput {
   name: string
   location: string
+  country?: string
+  state?: string
   start_date?: string
   end_date?: string
   description?: string
@@ -55,18 +61,35 @@ export async function createItinerary(
     throw new Error('User not authenticated')
   }
 
-  // Create itinerary
+  // Create itinerary - build data object with only required fields first
+  const itineraryData: Record<string, any> = {
+    user_id: user.id,
+    name: input.name,
+    location: input.location,
+    start_date: input.start_date || null,
+    end_date: input.end_date || null,
+    description: input.description || null,
+    is_smart_planned: input.is_smart_planned || false,
+  }
+
+  // Try to add optional fields (they may not exist in schema yet)
+  // If they don't exist, Supabase will ignore them
+  try {
+    if (input.country !== undefined) {
+      itineraryData.country = input.country || null
+    }
+    if (input.state !== undefined) {
+      itineraryData.state = input.state || null
+    }
+    itineraryData.is_completed = false
+  } catch (e) {
+    // Ignore if columns don't exist - will be added via migration
+    console.warn('Optional itinerary fields not available:', e)
+  }
+
   const { data: itinerary, error: itineraryError } = await supabase
     .from('itineraries')
-    .insert({
-      user_id: user.id,
-      name: input.name,
-      location: input.location,
-      start_date: input.start_date || null,
-      end_date: input.end_date || null,
-      description: input.description || null,
-      is_smart_planned: input.is_smart_planned || false,
-    })
+    .insert(itineraryData)
     .select()
     .single()
 
@@ -227,6 +250,60 @@ export async function updateItineraryItems(
       throw new Error(`Failed to insert items: ${insertError.message}`)
     }
   }
+}
+
+// Mark itinerary as completed and create travel journal entries
+export async function markItineraryCompleted(itineraryId: string): Promise<Itinerary> {
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    throw new Error('User not authenticated')
+  }
+
+  // Get the itinerary with items
+  const itinerary = await getItinerary(itineraryId)
+
+  if (!itinerary) {
+    throw new Error('Itinerary not found')
+  }
+
+  // Update itinerary as completed
+  const { error: updateError } = await supabase
+    .from('itineraries')
+    .update({
+      is_completed: true,
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', itineraryId)
+
+  if (updateError) {
+    throw new Error(`Failed to mark itinerary as completed: ${updateError.message}`)
+  }
+
+  // Create travel journal entries for all sites
+  if (itinerary.items && itinerary.items.length > 0) {
+    const { createJournalEntry } = await import('./travelJournalApi')
+    
+    for (const item of itinerary.items) {
+      try {
+        await createJournalEntry({
+          site_id: item.site_id,
+          site_name: item.site_name,
+          location_lat: item.location_lat,
+          location_lng: item.location_lng,
+          location_name: itinerary.location,
+          country: itinerary.country || undefined,
+          notes: `Visited as part of: ${itinerary.name}`,
+        })
+      } catch (error) {
+        console.error(`Failed to create journal entry for ${item.site_name}:`, error)
+        // Continue with other entries even if one fails
+      }
+    }
+  }
+  
+  // Refresh the itinerary to get updated status
+  return getItinerary(itineraryId)
 }
 
 // Delete an itinerary

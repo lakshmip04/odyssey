@@ -48,7 +48,9 @@ export function initPlacesAutocomplete(
 
   const autocomplete = new google.maps.places.Autocomplete(input, {
     types: options?.types || ['(cities)'],
-    componentRestrictions: options?.componentRestrictions,
+    componentRestrictions: options?.componentRestrictions ? {
+      country: options.componentRestrictions.country || null
+    } : undefined,
     fields: ['place_id', 'name', 'formatted_address', 'geometry', 'rating', 'photos', 'types'],
   })
 
@@ -122,7 +124,7 @@ export async function searchPlaces(
       document.createElement('div')
     )
 
-    const request: google.maps.places.PlaceSearchRequest = {
+    const request: google.maps.places.TextSearchRequest = {
       query: query,
       type: 'tourist_attraction',
     }

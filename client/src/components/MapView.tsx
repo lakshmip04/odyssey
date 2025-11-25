@@ -26,7 +26,7 @@ const MapView = ({
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [_isLoading, setIsLoading] = useState(true)
   const [mapError, setMapError] = useState<string | null>(null)
 
   // Get marker icon based on heritage type

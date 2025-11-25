@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { MapPin, Star, Calendar, Plus, Check } from 'lucide-react'
+import { MapPin, Star, Plus, Check } from 'lucide-react'
 import { HeritageSite } from '../lib/placesApi'
 import { Button } from './ui/button'
 import { Card } from './ui/card'

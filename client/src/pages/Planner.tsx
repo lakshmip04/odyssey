@@ -9,6 +9,7 @@ import {
   deleteItinerary,
   getItinerary,
   smartPlanItinerary,
+  markItineraryCompleted,
   type Itinerary 
 } from '../lib/itineraryApi'
 import Navbar from '../components/Navbar'
@@ -31,7 +32,8 @@ import {
   Trash2,
   Save,
   X,
-  Wand2
+  Wand2,
+  CheckCircle2
 } from 'lucide-react'
 import { RetroGrid } from '../components/ui/retro-grid'
 
@@ -48,7 +50,6 @@ const Planner = () => {
   // Saved itineraries
   const [savedItineraries, setSavedItineraries] = useState<Itinerary[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null) // null = new itinerary, otherwise itinerary ID
-  const [isLoadingItineraries, setIsLoadingItineraries] = useState(false)
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -66,14 +67,11 @@ const Planner = () => {
   }, [isAuthenticated])
 
   const loadSavedItineraries = async () => {
-    setIsLoadingItineraries(true)
     try {
       const itineraries = await getUserItineraries()
       setSavedItineraries(itineraries)
     } catch (error) {
       console.error('Error loading itineraries:', error)
-    } finally {
-      setIsLoadingItineraries(false)
     }
   }
 
@@ -193,6 +191,23 @@ const Planner = () => {
       }
     } catch (error) {
       console.error('Error loading itinerary:', error)
+    }
+  }
+
+  const handleMarkCompleted = async () => {
+    if (!activeTab) return
+    
+    if (!confirm('Mark this trip as completed? All sites will be added to your travel journal and marked on the Fog of War map.')) {
+      return
+    }
+
+    try {
+      await markItineraryCompleted(activeTab)
+      await loadSavedItineraries()
+      alert('Trip marked as completed! Sites have been added to your travel journal.')
+    } catch (error) {
+      console.error('Error marking trip as completed:', error)
+      alert('Failed to mark trip as completed. Please try again.')
     }
   }
 
@@ -501,14 +516,39 @@ const Planner = () => {
                         Smart Plan Route
                       </Button>
                     )}
-                    <Button
-                      className="w-full"
-                      size="lg"
-                      onClick={() => setIsSaveDialogOpen(true)}
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Trip
-                    </Button>
+                    {activeTab ? (
+                      <>
+                        {savedItineraries.find(it => it.id === activeTab)?.is_completed ? (
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            size="lg"
+                            disabled
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Trip Completed
+                          </Button>
+                        ) : (
+                          <Button
+                            className="w-full bg-[#FDE047] hover:bg-[#FACC15] text-yellow-900"
+                            size="lg"
+                            onClick={handleMarkCompleted}
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Mark Trip as Completed
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={() => setIsSaveDialogOpen(true)}
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Trip
+                      </Button>
+                    )}
                     <Button variant="outline" className="w-full" size="lg">
                       <Download className="w-4 h-4 mr-2" />
                       Export

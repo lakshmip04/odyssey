@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { Search, MapPin, Loader2 } from 'lucide-react'
+import { Search, Loader2 } from 'lucide-react'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
 import { loadGoogleMaps, isGoogleMapsLoaded } from '../lib/loadGoogleMaps'
 import { initPlacesAutocomplete, PlaceDetails } from '../lib/placesAutocomplete'
-import { motion, AnimatePresence } from 'framer-motion'
 
 interface LocationSearchProps {
   onLocationSelect: (location: string, placeDetails?: PlaceDetails) => void
@@ -16,7 +15,6 @@ const LocationSearch = ({
   placeholder = "Search for a destination (e.g., Varanasi)" 
 }: LocationSearchProps) => {
   const [query, setQuery] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
   const searchRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -97,10 +95,10 @@ const LocationSearch = ({
         />
         <Button
           onClick={handleSearch}
-          disabled={!query.trim() || isLoading || isInitializing}
+          disabled={!query.trim() || isInitializing}
           className="absolute right-2 top-1/2 transform -translate-y-1/2 h-10"
         >
-          {isLoading || isInitializing ? (
+          {isInitializing ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             'Search'

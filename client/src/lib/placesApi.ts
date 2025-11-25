@@ -137,7 +137,7 @@ export async function searchHeritageSites(
 // Google Places Autocomplete
 export async function getLocationSuggestions(
   query: string,
-  apiKey?: string
+  _apiKey?: string
 ): Promise<LocationSuggestion[]> {
   // Mock suggestions
   const suggestions: LocationSuggestion[] = [
@@ -164,9 +164,9 @@ export async function getLocationSuggestions(
 
 // OpenTripMap API - Get heritage sites by location
 export async function getHeritageSitesFromOpenTripMap(
-  lat: number,
-  lng: number,
-  radius: number = 5000
+  _lat: number,
+  _lng: number,
+  _radius: number = 5000
 ): Promise<HeritageSite[]> {
   // Mock implementation
   // In production, use: https://opentripmap.io/docs
