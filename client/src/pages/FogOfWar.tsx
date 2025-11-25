@@ -17,11 +17,10 @@ import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import FogOfWarMap from '../components/FogOfWarMap'
 import SearchableSelect from '../components/SearchableSelect'
-import { Lock, Globe, MapPin, Navigation, Map as MapIcon, Search } from 'lucide-react'
+import { Lock, Globe, MapPin, Navigation, Map as MapIcon } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { RetroGrid } from '../components/ui/retro-grid'
-import { Input } from '../components/ui/input'
 
 const FogOfWar = () => {
   const navigate = useNavigate()
@@ -45,8 +44,7 @@ const FogOfWar = () => {
   const [states, setStates] = useState<IState[]>([])
   const [cities, setCities] = useState<ICity[]>([])
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null)
-  const [selectedStateCode, setSelectedStateCode] = useState<string | null>(null)
-  const [filteredCities, setFilteredCities] = useState<ICity[]>([])
+  const [_selectedStateCode, setSelectedStateCode] = useState<string | null>(null)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -76,7 +74,6 @@ const FogOfWar = () => {
     setCitySearch('')
     setStates([])
     setCities([])
-    setFilteredCities([])
     setSelectedCountryCode(null)
     setSelectedStateCode(null)
     
@@ -100,7 +97,6 @@ const FogOfWar = () => {
     setSelectedState(stateName)
     setCitySearch('')
     setCities([])
-    setFilteredCities([])
     setSelectedStateCode(null)
     
     if (stateName && selectedCountryCode) {
@@ -112,7 +108,6 @@ const FogOfWar = () => {
         setSelectedStateCode(stateCode)
         const citiesData = getCitiesByStateCode(selectedCountryCode, stateCode)
         setCities(citiesData)
-        setFilteredCities(citiesData)
       }
     } else {
       // If "All States" selected, switch back to country view
@@ -125,21 +120,14 @@ const FogOfWar = () => {
           allCities.push(...citiesData)
         }
         setCities(allCities)
-        setFilteredCities(allCities)
       }
     }
   }
 
-  const handleCitySearch = (query: string) => {
-    setCitySearch(query)
-    if (query.trim()) {
-      const filtered = cities.filter(city =>
-        city.name.toLowerCase().includes(query.toLowerCase())
-      )
-      setFilteredCities(filtered)
-    } else {
-      setFilteredCities(cities)
-    }
+  const handleCityChange = (cityName: string) => {
+    setCitySearch(cityName)
+    // City selection is optional - just for filtering display
+    // The map will show all visited cities in the selected state
   }
 
   const loadVisitedLocations = async () => {
@@ -309,27 +297,21 @@ const FogOfWar = () => {
                 </div>
 
                 <div className="relative">
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block">Search City (Optional)</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      value={citySearch}
-                      onChange={(e) => handleCitySearch(e.target.value)}
-                      placeholder={
-                        !selectedState 
-                          ? "Select state first" 
-                          : "Search cities..."
-                      }
-                      disabled={!selectedState}
-                      className="pl-9"
-                    />
-                  </div>
-                  {citySearch && filteredCities.length > 0 && (
-                    <div className="mt-1 text-xs text-gray-500">
-                      {filteredCities.length} {filteredCities.length === 1 ? 'city' : 'cities'} found
-                    </div>
-                  )}
+                  <SearchableSelect
+                    value={citySearch || ''}
+                    onChange={handleCityChange}
+                    options={[
+                      { value: '', label: 'All Cities' },
+                      ...cities.map(city => ({ value: city.name, label: city.name }))
+                    ]}
+                    placeholder={
+                      !selectedState 
+                        ? "Select state first" 
+                        : "Choose a city..."
+                    }
+                    disabled={!selectedState}
+                    label="Select City (Optional)"
+                  />
                 </div>
               </div>
             </div>

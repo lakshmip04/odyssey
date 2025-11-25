@@ -293,6 +293,7 @@ export async function markItineraryCompleted(itineraryId: string): Promise<Itine
           location_lng: item.location_lng,
           location_name: itinerary.location,
           country: itinerary.country || undefined,
+          state: itinerary.state || undefined,
           notes: `Visited as part of: ${itinerary.name}`,
         })
       } catch (error) {

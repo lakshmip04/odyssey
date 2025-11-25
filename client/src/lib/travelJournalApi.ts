@@ -9,6 +9,7 @@ export interface TravelJournalEntry {
   location_lng: number
   location_name?: string
   country?: string
+  state?: string
   visited_at: string
   notes?: string
   photos?: string[]
@@ -24,6 +25,7 @@ export interface CreateJournalEntryInput {
   location_lng: number
   location_name?: string
   country?: string
+  state?: string
   notes?: string
   photos?: string[]
   ai_translations?: Record<string, any>
@@ -49,6 +51,7 @@ export async function createJournalEntry(
       location_lng: input.location_lng,
       location_name: input.location_name || null,
       country: input.country || null,
+      state: input.state || null,
       notes: input.notes || null,
       photos: input.photos || null,
       ai_translations: input.ai_translations || null,
@@ -101,7 +104,7 @@ export async function getVisitedLocations(): Promise<Array<{
     name: entry.site_name,
     visitedAt: entry.visited_at,
     country: entry.country || undefined,
-    state: undefined, // State not stored in journal entries yet, can be added later
+    state: entry.state || undefined,
   }))
 }
 

@@ -21,9 +21,31 @@ export function getCitiesByStateCode(countryCode: string, stateCode: string): IC
   return City.getCitiesOfState(countryCode, stateCode)
 }
 
-// Helper: Get country code from country name
+// Helper: Get country code from country name (case-insensitive, handles variations)
 export function getCountryCodeFromName(countryName: string): string | null {
-  const country = Country.getAllCountries().find(c => c.name === countryName)
+  if (!countryName) return null
+  
+  const normalizedName = countryName.trim()
+  
+  // Try exact match first
+  let country = Country.getAllCountries().find(c => 
+    c.name.toLowerCase() === normalizedName.toLowerCase()
+  )
+  
+  // Try partial match if exact match fails
+  if (!country) {
+    country = Country.getAllCountries().find(c => 
+      c.name.toLowerCase().includes(normalizedName.toLowerCase()) ||
+      normalizedName.toLowerCase().includes(c.name.toLowerCase())
+    )
+  }
+  
+  if (country) {
+    console.log(`Matched country: "${countryName}" -> "${country.name}" (${country.isoCode})`)
+  } else {
+    console.warn(`Could not match country: "${countryName}"`)
+  }
+  
   return country?.isoCode || null
 }
 

@@ -43,9 +43,15 @@ const FogOfWarMap = ({
     visitedLocations.forEach(loc => {
       if (loc.country) {
         const code = getCountryCodeFromName(loc.country)
-        if (code) codes.add(code.toUpperCase())
+        if (code) {
+          codes.add(code.toUpperCase())
+          console.log(`Marking country as visited: ${loc.country} -> ${code.toUpperCase()}`)
+        } else {
+          console.warn(`Could not find country code for: ${loc.country}`)
+        }
       }
     })
+    console.log('Visited country codes:', Array.from(codes))
     return codes
   }
 
@@ -196,6 +202,11 @@ const FogOfWarMap = ({
         const iso = (isoA2 || isoA3 || '').toString().toUpperCase()
         
         const isVisited = visitedCountryCodes.has(iso)
+        
+        // Debug logging for first few features
+        if (feature.getProperty('NAME') && Math.random() < 0.01) {
+          console.log(`Country: ${feature.getProperty('NAME')}, ISO: ${iso}, Visited: ${isVisited}`)
+        }
 
         return {
           fillColor: isVisited ? '#FDE047' : '#E5E5E5', // Light gray for unvisited, yellow for visited
@@ -273,6 +284,16 @@ const FogOfWarMap = ({
 
     // Filter cities in selected country
     const countryCities = visitedLocations.filter(loc => loc.country === selectedCountry)
+    
+    // Group cities by state to identify visited states
+    const visitedStates = new Set<string>()
+    countryCities.forEach(loc => {
+      if (loc.state) {
+        visitedStates.add(loc.state)
+      }
+    })
+    
+    console.log(`Country view: ${countryCities.length} cities in ${selectedCountry}, ${visitedStates.size} states visited`)
 
     // Add markers for visited cities
     countryCities.forEach((location) => {
