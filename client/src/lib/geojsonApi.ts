@@ -42,11 +42,7 @@ export function getCountryGeoJSON(worldGeoJSON: any, countryCode: string): any |
   return null
 }
 
-// Extract country code from country name (using CountriesNow API data)
-export function getCountryCodeFromName(countryName: string, countries: Array<{ name: string; iso2: string; iso3: string }>): string | null {
-  const country = countries.find(c => c.name === countryName)
-  return country?.iso2 || country?.iso3 || null
-}
+// Note: getCountryCodeFromName is now in locationData.ts
 
 // Get bounds from GeoJSON feature
 export function getBoundsFromFeature(feature: any): google.maps.LatLngBounds | null {

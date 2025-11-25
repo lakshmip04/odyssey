@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Lock, Loader2 } from 'lucide-react'
 import { loadGoogleMaps, isGoogleMapsLoaded } from '../lib/loadGoogleMaps'
-import { getWorldCountriesGeoJSON, getCountryGeoJSON, getBoundsFromFeature, getCountryCodeFromName } from '../lib/geojsonApi'
-import { getAllCountries } from '../lib/countriesApi'
+import { getWorldCountriesGeoJSON, getCountryGeoJSON, getBoundsFromFeature } from '../lib/geojsonApi'
+import { getAllCountries, getCountryCodeFromName } from '../lib/locationData'
 
 interface FogOfWarMapProps {
   visitedLocations?: Array<{
@@ -35,14 +35,14 @@ const FogOfWarMap = ({
   const [mapError, setMapError] = useState<string | null>(null)
   const [worldGeoJSON, setWorldGeoJSON] = useState<any>(null)
   const [countryGeoJSON, setCountryGeoJSON] = useState<any>(null)
-  const [countriesList, setCountriesList] = useState<Array<{ name: string; iso2: string; iso3: string }>>([])
+  const [countriesList, setCountriesList] = useState<Array<{ name: string; isoCode: string }>>([])
 
   // Extract visited country codes from visited locations
   const getVisitedCountryCodes = () => {
     const codes = new Set<string>()
     visitedLocations.forEach(loc => {
-      if (loc.country && countriesList.length > 0) {
-        const code = getCountryCodeFromName(loc.country, countriesList)
+      if (loc.country) {
+        const code = getCountryCodeFromName(loc.country)
         if (code) codes.add(code.toUpperCase())
       }
     })
@@ -72,13 +72,16 @@ const FogOfWarMap = ({
         }
 
         // Load countries list for code mapping
-        const countries = await getAllCountries()
-        setCountriesList(countries)
+        const countries = getAllCountries()
+        setCountriesList(countries.map(c => ({ name: c.name, isoCode: c.isoCode })))
 
         // Load world countries GeoJSON
         const worldGeo = await getWorldCountriesGeoJSON()
         if (worldGeo) {
+          console.log('Loaded world GeoJSON with', worldGeo.features?.length || 0, 'features')
           setWorldGeoJSON(worldGeo)
+        } else {
+          console.error('Failed to load world GeoJSON')
         }
 
         // Create map with light theme
@@ -111,15 +114,20 @@ const FogOfWarMap = ({
 
         mapInstanceRef.current = map
 
-        // Initialize Data Layer for GeoJSON
-        const dataLayer = new google.maps.Data()
-        dataLayer.setMap(map)
-        dataLayerRef.current = dataLayer
-
-        if (isMounted) {
-          setIsLoading(false)
-          setMapError(null)
-        }
+        // Wait for map to be fully loaded before adding data layer
+        google.maps.event.addListenerOnce(map, 'idle', () => {
+          // Initialize Data Layer for GeoJSON
+          const dataLayer = new google.maps.Data()
+          dataLayer.setMap(map)
+          dataLayerRef.current = dataLayer
+          
+          console.log('Data layer initialized')
+          
+          if (isMounted) {
+            setIsLoading(false)
+            setMapError(null)
+          }
+        })
       } catch (error) {
         console.error('Error initializing map:', error)
         if (isMounted) {
@@ -143,7 +151,7 @@ const FogOfWarMap = ({
       return
     }
 
-    const countryCode = getCountryCodeFromName(selectedCountry, countriesList)
+    const countryCode = getCountryCodeFromName(selectedCountry)
     if (countryCode) {
       const countryGeo = getCountryGeoJSON(worldGeoJSON, countryCode)
       setCountryGeoJSON(countryGeo)
@@ -160,10 +168,19 @@ const FogOfWarMap = ({
 
   // Render world countries with visited countries colored yellow
   useEffect(() => {
-    if (!dataLayerRef.current || !worldGeoJSON || viewMode !== 'world' || !mapInstanceRef.current) return
+    if (!dataLayerRef.current || !worldGeoJSON || viewMode !== 'world' || !mapInstanceRef.current) {
+      console.log('World map render conditions:', {
+        hasDataLayer: !!dataLayerRef.current,
+        hasGeoJSON: !!worldGeoJSON,
+        viewMode,
+        hasMap: !!mapInstanceRef.current
+      })
+      return
+    }
 
     const dataLayer = dataLayerRef.current
     const visitedCountryCodes = getVisitedCountryCodes()
+    console.log('Rendering world map with', visitedCountryCodes.size, 'visited countries')
 
     // Clear existing data
     dataLayer.forEach((feature) => {
@@ -172,29 +189,31 @@ const FogOfWarMap = ({
 
     // Add world countries
     try {
-      dataLayer.addGeoJson(worldGeoJSON)
+      // First, set the style function before adding data
+      dataLayer.setStyle((feature) => {
+        const isoA2 = feature.getProperty('ISO_A2') || feature.getProperty('ISO2') || feature.getProperty('ADM0_A2')
+        const isoA3 = feature.getProperty('ISO_A3') || feature.getProperty('ISO3') || feature.getProperty('ADM0_A3')
+        const iso = (isoA2 || isoA3 || '').toString().toUpperCase()
+        
+        const isVisited = visitedCountryCodes.has(iso)
+
+        return {
+          fillColor: isVisited ? '#FDE047' : '#E5E5E5', // Light gray for unvisited, yellow for visited
+          fillOpacity: isVisited ? 0.7 : 0.3, // Make unvisited countries slightly visible
+          strokeColor: isVisited ? '#FACC15' : '#999',
+          strokeWeight: isVisited ? 2 : 1,
+          strokeOpacity: isVisited ? 0.8 : 0.5,
+          clickable: true,
+        }
+      })
+      
+      // Then add the GeoJSON
+      const features = dataLayer.addGeoJson(worldGeoJSON)
+      console.log('Added', features.length, 'country features to map')
     } catch (error) {
       console.error('Error adding GeoJSON to map:', error)
       return
     }
-
-    // Style countries: yellow for visited, light gray for unvisited (so they're visible)
-    dataLayer.setStyle((feature) => {
-      const isoA2 = feature.getProperty('ISO_A2') || feature.getProperty('ISO2') || feature.getProperty('ADM0_A2')
-      const isoA3 = feature.getProperty('ISO_A3') || feature.getProperty('ISO3') || feature.getProperty('ADM0_A3')
-      const iso = (isoA2 || isoA3 || '').toString().toUpperCase()
-      
-      const isVisited = visitedCountryCodes.has(iso)
-
-      return {
-        fillColor: isVisited ? '#FDE047' : '#E5E5E5', // Light gray for unvisited, yellow for visited
-        fillOpacity: isVisited ? 0.7 : 0.3, // Make unvisited countries slightly visible
-        strokeColor: isVisited ? '#FACC15' : '#999',
-        strokeWeight: isVisited ? 2 : 1,
-        strokeOpacity: isVisited ? 0.8 : 0.5,
-        clickable: true,
-      }
-    })
 
     // Click handler: switch to country view
     dataLayer.addListener('click', (event: any) => {
@@ -205,7 +224,7 @@ const FogOfWarMap = ({
       
       // Find country name from code
       const country = countriesList.find(c => 
-        c.iso2.toUpperCase() === iso || c.iso3.toUpperCase() === iso
+        c.isoCode.toUpperCase() === iso
       )
       
       if (country) {

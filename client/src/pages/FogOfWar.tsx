@@ -3,7 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth'
 import { getVisitedLocations } from '../lib/travelJournalApi'
-import { getAllCountries, getStatesByCountry, getCitiesByState, type Country, type State, type City } from '../lib/countriesApi'
+import { 
+  getAllCountries, 
+  getStatesByCountryCode, 
+  getCitiesByStateCode,
+  getCountryCodeFromName,
+  getStateCodeFromName,
+  type ICountry, 
+  type IState, 
+  type ICity 
+} from '../lib/locationData'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import FogOfWarMap from '../components/FogOfWarMap'
@@ -31,12 +40,13 @@ const FogOfWar = () => {
   const [selectedState, setSelectedState] = useState<string | null>(null)
   const [citySearch, setCitySearch] = useState<string>('')
   
-  // CountriesNow API data
-  const [countries, setCountries] = useState<Country[]>([])
-  const [states, setStates] = useState<State[]>([])
-  const [cities, setCities] = useState<City[]>([])
-  const [isLoadingCountries, setIsLoadingCountries] = useState(false)
-  const [filteredCities, setFilteredCities] = useState<City[]>([])
+  // Location data
+  const [countries, setCountries] = useState<ICountry[]>([])
+  const [states, setStates] = useState<IState[]>([])
+  const [cities, setCities] = useState<ICity[]>([])
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null)
+  const [selectedStateCode, setSelectedStateCode] = useState<string | null>(null)
+  const [filteredCities, setFilteredCities] = useState<ICity[]>([])
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -51,35 +61,34 @@ const FogOfWar = () => {
     }
   }, [isAuthenticated])
 
-  const loadCountries = async () => {
-    setIsLoadingCountries(true)
+  const loadCountries = () => {
     try {
-      const countriesData = await getAllCountries()
+      const countriesData = getAllCountries()
       setCountries(countriesData)
     } catch (error) {
       console.error('Error loading countries:', error)
-    } finally {
-      setIsLoadingCountries(false)
     }
   }
 
-  const handleCountryChange = async (countryName: string) => {
+  const handleCountryChange = (countryName: string) => {
     setSelectedCountry(countryName)
     setSelectedState(null)
     setCitySearch('')
     setStates([])
     setCities([])
     setFilteredCities([])
+    setSelectedCountryCode(null)
+    setSelectedStateCode(null)
     
     if (countryName) {
       // Automatically switch to country view when country is selected
       setMapView('country')
       
-      try {
-        const statesData = await getStatesByCountry(countryName)
+      const countryCode = getCountryCodeFromName(countryName)
+      if (countryCode) {
+        setSelectedCountryCode(countryCode)
+        const statesData = getStatesByCountryCode(countryCode)
         setStates(statesData)
-      } catch (error) {
-        console.error('Error loading states:', error)
       }
     } else {
       // If "All Countries" selected, switch back to world view
@@ -87,27 +96,36 @@ const FogOfWar = () => {
     }
   }
 
-  const handleStateChange = async (stateName: string) => {
+  const handleStateChange = (stateName: string) => {
     setSelectedState(stateName)
     setCitySearch('')
     setCities([])
     setFilteredCities([])
+    setSelectedStateCode(null)
     
-    if (stateName && selectedCountry) {
+    if (stateName && selectedCountryCode) {
       // Automatically switch to state view when state is selected
       setMapView('state')
       
-      try {
-        const citiesData = await getCitiesByState(selectedCountry, stateName)
+      const stateCode = getStateCodeFromName(stateName, selectedCountryCode)
+      if (stateCode) {
+        setSelectedStateCode(stateCode)
+        const citiesData = getCitiesByStateCode(selectedCountryCode, stateCode)
         setCities(citiesData)
         setFilteredCities(citiesData)
-      } catch (error) {
-        console.error('Error loading cities:', error)
       }
     } else {
       // If "All States" selected, switch back to country view
-      if (selectedCountry) {
+      if (selectedCountryCode) {
         setMapView('country')
+        // Load all cities for all states in the country
+        const allCities: ICity[] = []
+        for (const state of states) {
+          const citiesData = getCitiesByStateCode(selectedCountryCode, state.isoCode)
+          allCities.push(...citiesData)
+        }
+        setCities(allCities)
+        setFilteredCities(allCities)
       }
     }
   }
@@ -173,7 +191,7 @@ const FogOfWar = () => {
 
       <Navbar />
       
-      <main className="flex-grow relative z-10">
+      <main className="flex-grow relative z-[200]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <motion.div
@@ -202,7 +220,7 @@ const FogOfWar = () => {
           </motion.div>
 
           {/* Map View Selector and Location Filters */}
-          <Card className="p-4 bg-background/80 backdrop-blur-xl border-2 mb-4">
+          <Card className="relative z-[200] p-4 bg-background/80 backdrop-blur-xl border-2 mb-4">
             <div className="space-y-4">
               {/* View Mode Selector */}
               <div className="flex items-center gap-2 flex-wrap">
@@ -257,9 +275,9 @@ const FogOfWar = () => {
               </Button>
               </div>
 
-              {/* Location Selectors using CountriesNow API */}
+              {/* Location Selectors */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-200">
-                <div>
+                <div className="relative">
                   <SearchableSelect
                     value={selectedCountry || ''}
                     onChange={handleCountryChange}
@@ -267,13 +285,12 @@ const FogOfWar = () => {
                       { value: '', label: 'All Countries (World View)' },
                       ...countries.map(country => ({ value: country.name, label: country.name }))
                     ]}
-                    placeholder={isLoadingCountries ? "Loading countries..." : "Choose a country..."}
-                    disabled={isLoadingCountries}
+                    placeholder="Choose a country..."
                     label={`Select Country ${mapView === 'country' || mapView === 'state' ? '(Required)' : ''}`}
                   />
                 </div>
 
-                <div>
+                <div className="relative">
                   <SearchableSelect
                     value={selectedState || ''}
                     onChange={handleStateChange}
@@ -284,16 +301,14 @@ const FogOfWar = () => {
                     placeholder={
                       !selectedCountry 
                         ? "Select country first" 
-                        : states.length === 0 
-                        ? "Loading states..." 
                         : "All States"
                     }
-                    disabled={!selectedCountry || states.length === 0}
+                    disabled={!selectedCountry}
                     label={`Select State ${mapView === 'state' ? '(Required)' : '(Optional)'}`}
                   />
                 </div>
 
-                <div>
+                <div className="relative">
                   <label className="text-sm font-semibold text-gray-700 mb-2 block">Search City (Optional)</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -304,11 +319,9 @@ const FogOfWar = () => {
                       placeholder={
                         !selectedState 
                           ? "Select state first" 
-                          : cities.length === 0 
-                          ? "Loading cities..." 
                           : "Search cities..."
                       }
-                      disabled={!selectedState || cities.length === 0}
+                      disabled={!selectedState}
                       className="pl-9"
                     />
                   </div>

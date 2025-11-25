@@ -81,17 +81,18 @@ const SearchableSelect = ({
         </button>
 
         {isOpen && (
-          <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+          <div className="absolute z-[100] mt-1 w-full rounded-md border bg-white dark:bg-gray-800 shadow-lg">
             <div className="p-2 border-b">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search..."
-                  className="w-full pl-8 pr-2 h-8 rounded-md border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="w-full pl-8 pr-2 h-8 rounded-md border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring relative z-0"
                   autoFocus
+                  onClick={(e) => e.stopPropagation()}
                 />
               </div>
             </div>
