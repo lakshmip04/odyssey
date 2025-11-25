@@ -39,15 +39,31 @@ const Planner = () => {
     }
   }, [loading, isAuthenticated, navigate])
 
-  const handleLocationSearch = async (location: string) => {
+  const handleLocationSearch = async (location: string, placeDetails?: any) => {
     setSelectedLocation(location)
     setIsLoading(true)
+    
     try {
-      const sites = await searchHeritageSites(location)
+      let locationCoords: { lat: number; lng: number } | undefined
+      
+      // If we have place details, use the coordinates
+      if (placeDetails?.geometry?.location) {
+        const lat = typeof placeDetails.geometry.location.lat === 'function' 
+          ? placeDetails.geometry.location.lat() 
+          : placeDetails.geometry.location.lat
+        const lng = typeof placeDetails.geometry.location.lng === 'function'
+          ? placeDetails.geometry.location.lng()
+          : placeDetails.geometry.location.lng
+        
+        locationCoords = { lat, lng }
+        setMapCenter(locationCoords)
+      }
+      
+      const sites = await searchHeritageSites(location, locationCoords)
       setHeritageSites(sites)
       
-      // Set map center to first site if available
-      if (sites.length > 0) {
+      // Set map center to first site if available and we don't have place details
+      if (sites.length > 0 && !locationCoords) {
         setMapCenter(sites[0].location)
       }
     } catch (error) {
@@ -173,8 +189,9 @@ const Planner = () => {
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
                 ) : viewMode === 'map' ? (
-                  <div className="h-[600px] rounded-lg overflow-hidden">
+                  <div className="h-[600px] rounded-lg overflow-hidden relative">
                     <MapView 
+                      key={`map-${selectedLocation}-${heritageSites.length}`}
                       center={mapCenter || { lat: 25.3176, lng: 83.0104 }}
                       zoom={12}
                       sites={heritageSites}

@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { Search, MapPin, Loader2 } from 'lucide-react'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
-import { LocationSuggestion, getLocationSuggestions } from '../lib/placesApi'
+import { loadGoogleMaps, isGoogleMapsLoaded } from '../lib/loadGoogleMaps'
+import { initPlacesAutocomplete, PlaceDetails } from '../lib/placesAutocomplete'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface LocationSearchProps {
-  onLocationSelect: (location: string) => void
+  onLocationSelect: (location: string, placeDetails?: PlaceDetails) => void
   placeholder?: string
 }
 
@@ -15,82 +16,91 @@ const LocationSearch = ({
   placeholder = "Search for a destination (e.g., Varanasi)" 
 }: LocationSearchProps) => {
   const [query, setQuery] = useState('')
-  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(true)
   const searchRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
 
+  // Initialize Google Maps and Places Autocomplete
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false)
-      }
-    }
+    const initializeAutocomplete = async () => {
+      if (!inputRef.current) return
 
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  useEffect(() => {
-    if (query.length < 2) {
-      setSuggestions([])
-      setShowSuggestions(false)
-      return
-    }
-
-    const fetchSuggestions = async () => {
-      setIsLoading(true)
       try {
-        const results = await getLocationSuggestions(query)
-        setSuggestions(results)
-        setShowSuggestions(results.length > 0)
+        setIsInitializing(true)
+        
+        // Load Google Maps if not already loaded
+        if (!isGoogleMapsLoaded()) {
+          await loadGoogleMaps()
+        }
+
+        if (!isGoogleMapsLoaded() || !inputRef.current) {
+          setIsInitializing(false)
+          return
+        }
+
+        // Initialize Places Autocomplete
+        const autocomplete = initPlacesAutocomplete(
+          inputRef.current,
+          (place) => {
+            setQuery(place.formatted_address || place.name)
+            onLocationSelect(place.formatted_address || place.name, place)
+          },
+          {
+            types: ['(cities)'],
+          }
+        )
+
+        if (autocomplete) {
+          autocompleteRef.current = autocomplete
+        }
+
+        setIsInitializing(false)
       } catch (error) {
-        console.error('Error fetching suggestions:', error)
-      } finally {
-        setIsLoading(false)
+        console.error('Error initializing autocomplete:', error)
+        setIsInitializing(false)
       }
     }
 
-    const debounceTimer = setTimeout(fetchSuggestions, 300)
-    return () => clearTimeout(debounceTimer)
-  }, [query])
+    initializeAutocomplete()
 
-  const handleSelect = (suggestion: LocationSuggestion) => {
-    setQuery(suggestion.description)
-    setShowSuggestions(false)
-    onLocationSelect(suggestion.description)
-  }
+    return () => {
+      // Cleanup if needed
+      autocompleteRef.current = null
+    }
+  }, [])
 
   const handleSearch = () => {
     if (query.trim()) {
       onLocationSelect(query.trim())
-      setShowSuggestions(false)
     }
   }
 
   return (
     <div ref={searchRef} className="relative w-full">
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground z-10" />
         <Input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => query.length >= 2 && suggestions.length > 0 && setShowSuggestions(true)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               handleSearch()
             }
           }}
-          placeholder={placeholder}
+          placeholder={isInitializing ? "Loading search..." : placeholder}
+          disabled={isInitializing}
           className="pl-12 pr-32 h-14 text-base"
         />
         <Button
           onClick={handleSearch}
-          disabled={!query.trim() || isLoading}
+          disabled={!query.trim() || isLoading || isInitializing}
           className="absolute right-2 top-1/2 transform -translate-y-1/2 h-10"
         >
-          {isLoading ? (
+          {isLoading || isInitializing ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             'Search'
@@ -98,34 +108,11 @@ const LocationSearch = ({
         </Button>
       </div>
 
-      <AnimatePresence>
-        {showSuggestions && suggestions.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute z-50 w-full mt-2 bg-background border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
-          >
-            {suggestions.map((suggestion) => (
-              <button
-                key={suggestion.place_id}
-                onClick={() => handleSelect(suggestion)}
-                className="w-full px-4 py-3 text-left hover:bg-primary/5 transition-colors flex items-start gap-3 border-b border-border last:border-b-0"
-              >
-                <MapPin className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-foreground truncate">
-                    {suggestion.main_text}
-                  </p>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {suggestion.secondary_text}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isInitializing && (
+        <div className="absolute top-full left-0 right-0 mt-2 p-2 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded-lg border border-border">
+          Initializing Google Places Autocomplete...
+        </div>
+      )}
     </div>
   )
 }
