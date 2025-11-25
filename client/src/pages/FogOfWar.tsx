@@ -135,6 +135,24 @@ const FogOfWar = () => {
     try {
       const locations = await getVisitedLocations()
       setVisitedLocations(locations)
+      
+      // Check if any locations are missing country/state and update them
+      const missingData = locations.filter(loc => !loc.country || !loc.state)
+      if (missingData.length > 0) {
+        console.log(`Found ${missingData.length} locations missing country/state data. Updating...`)
+        const { updateMissingLocationData } = await import('../lib/travelJournalApi')
+        try {
+          const updated = await updateMissingLocationData()
+          if (updated > 0) {
+            console.log(`Updated ${updated} entries with country/state data`)
+            // Reload locations after update
+            const updatedLocations = await getVisitedLocations()
+            setVisitedLocations(updatedLocations)
+          }
+        } catch (error) {
+          console.error('Error updating missing location data:', error)
+        }
+      }
     } catch (error) {
       console.error('Error loading visited locations:', error)
       setVisitedLocations([])
@@ -320,7 +338,8 @@ const FogOfWar = () => {
           {/* Main Map */}
           <Card className="p-6 bg-background/80 backdrop-blur-xl border-2 mb-6">
             <div className="h-[600px] rounded-lg overflow-hidden">
-              <FogOfWarMap 
+              <FogOfWarMap
+                selectedCity={citySearch || null} 
                 visitedLocations={visitedLocations}
                 viewMode={mapView}
                 selectedCountry={selectedCountry}

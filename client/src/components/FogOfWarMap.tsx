@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Lock, Loader2 } from 'lucide-react'
 import { loadGoogleMaps, isGoogleMapsLoaded } from '../lib/loadGoogleMaps'
 import { getWorldCountriesGeoJSON, getCountryGeoJSON, getBoundsFromFeature } from '../lib/geojsonApi'
-import { getAllCountries, getCountryCodeFromName } from '../lib/locationData'
+import { getAllCountries, getCountryCodeFromName, getStatesByCountryCode } from '../lib/locationData'
 
 interface FogOfWarMapProps {
   visitedLocations?: Array<{
@@ -16,6 +16,7 @@ interface FogOfWarMapProps {
   viewMode?: 'world' | 'country' | 'state'
   selectedCountry?: string | null
   selectedState?: string | null
+  selectedCity?: string | null
   className?: string
 }
 
@@ -24,6 +25,7 @@ const FogOfWarMap = ({
   viewMode = 'world',
   selectedCountry = null,
   selectedState = null,
+  selectedCity = null,
   className = '' 
 }: FogOfWarMapProps) => {
   const mapRef = useRef<HTMLDivElement>(null)
@@ -40,18 +42,25 @@ const FogOfWarMap = ({
   // Extract visited country codes from visited locations
   const getVisitedCountryCodes = () => {
     const codes = new Set<string>()
-    visitedLocations.forEach(loc => {
+    console.log('=== Processing visited locations ===')
+    console.log('Total locations:', visitedLocations.length)
+    
+    visitedLocations.forEach((loc, idx) => {
+      console.log(`Location ${idx + 1}:`, { name: loc.name, country: loc.country, state: loc.state })
       if (loc.country) {
         const code = getCountryCodeFromName(loc.country)
         if (code) {
           codes.add(code.toUpperCase())
-          console.log(`Marking country as visited: ${loc.country} -> ${code.toUpperCase()}`)
+          console.log(`✓ ${loc.country} -> ${code.toUpperCase()}`)
         } else {
-          console.warn(`Could not find country code for: ${loc.country}`)
+          console.warn(`✗ Could not match: ${loc.country}`)
         }
+      } else {
+        console.warn(`✗ Location "${loc.name}" has no country`)
       }
     })
-    console.log('Visited country codes:', Array.from(codes))
+    
+    console.log('=== Final visited country codes ===', Array.from(codes))
     return codes
   }
 
@@ -195,32 +204,44 @@ const FogOfWarMap = ({
 
     // Add world countries
     try {
-      // First, set the style function before adding data
+      // Set the style function BEFORE adding data - this ensures it applies to all features
       dataLayer.setStyle((feature) => {
-        const isoA2 = feature.getProperty('ISO_A2') || feature.getProperty('ISO2') || feature.getProperty('ADM0_A2')
-        const isoA3 = feature.getProperty('ISO_A3') || feature.getProperty('ISO3') || feature.getProperty('ADM0_A3')
+        // Try multiple property names for ISO codes
+        const isoA2 = feature.getProperty('ISO_A2') || 
+                     feature.getProperty('ISO2') || 
+                     feature.getProperty('ADM0_A2') ||
+                     feature.getProperty('iso_a2') ||
+                     feature.getProperty('ISO_A2_EH')
+        const isoA3 = feature.getProperty('ISO_A3') || 
+                     feature.getProperty('ISO3') || 
+                     feature.getProperty('ADM0_A3') ||
+                     feature.getProperty('iso_a3')
+        
         const iso = (isoA2 || isoA3 || '').toString().toUpperCase()
+        const countryName = feature.getProperty('NAME') || feature.getProperty('name') || feature.getProperty('ADMIN')
         
         const isVisited = visitedCountryCodes.has(iso)
         
-        // Debug logging for first few features
-        if (feature.getProperty('NAME') && Math.random() < 0.01) {
-          console.log(`Country: ${feature.getProperty('NAME')}, ISO: ${iso}, Visited: ${isVisited}`)
+        // Log visited countries for debugging
+        if (isVisited) {
+          console.log(`✓ VISITED: ${countryName} (ISO: ${iso})`)
         }
 
         return {
-          fillColor: isVisited ? '#FDE047' : '#E5E5E5', // Light gray for unvisited, yellow for visited
-          fillOpacity: isVisited ? 0.7 : 0.3, // Make unvisited countries slightly visible
+          fillColor: isVisited ? '#FDE047' : '#E5E5E5',
+          fillOpacity: isVisited ? 0.8 : 0.3,
           strokeColor: isVisited ? '#FACC15' : '#999',
-          strokeWeight: isVisited ? 2 : 1,
-          strokeOpacity: isVisited ? 0.8 : 0.5,
+          strokeWeight: isVisited ? 3 : 1,
+          strokeOpacity: isVisited ? 1.0 : 0.5,
           clickable: true,
         }
       })
       
-      // Then add the GeoJSON
+      // Now add the GeoJSON - styles will be applied automatically
       const features = dataLayer.addGeoJson(worldGeoJSON)
       console.log('Added', features.length, 'country features to map')
+      console.log('Visited countries should be marked yellow')
+      
     } catch (error) {
       console.error('Error adding GeoJSON to map:', error)
       return
@@ -245,12 +266,40 @@ const FogOfWarMap = ({
       }
     })
 
-    // Reset zoom for world view
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.setCenter({ lat: 20, lng: 0 })
-      mapInstanceRef.current.setZoom(2)
-    }
-  }, [worldGeoJSON, viewMode, visitedLocations, countriesList])
+      // Add yellow markers for ALL visited locations as a fallback
+      // This ensures visited places are visible even if country matching fails
+      markersRef.current.forEach(marker => marker.setMap(null))
+      markersRef.current = []
+      
+      visitedLocations.forEach((location) => {
+        if (location.lat && location.lng) {
+          const marker = new google.maps.Marker({
+            position: { lat: location.lat, lng: location.lng },
+            map: mapInstanceRef.current!,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: '#FDE047',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: 3,
+            },
+            title: location.name || 'Visited location',
+            animation: google.maps.Animation.DROP,
+            zIndex: 1000, // Ensure markers are on top
+          })
+          markersRef.current.push(marker)
+        }
+      })
+      
+      console.log(`Added ${markersRef.current.length} yellow markers for visited locations`)
+
+      // Reset zoom for world view
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.setCenter({ lat: 20, lng: 0 })
+        mapInstanceRef.current.setZoom(2)
+      }
+    }, [worldGeoJSON, viewMode, visitedLocations, countriesList])
 
   // Render country boundaries and city markers for country view
   useEffect(() => {
@@ -342,15 +391,39 @@ const FogOfWarMap = ({
       })
     })
 
-    // Fit bounds to show all cities
-    if (countryCities.length > 0) {
+    // Zoom to country bounds - always zoom to country, include cities if available
+    if (countryGeoJSON && countryGeoJSON.features && countryGeoJSON.features.length > 0) {
+      const bounds = getBoundsFromFeature(countryGeoJSON.features[0])
+      if (bounds) {
+        // If there are visited cities, include them in bounds for better view
+        if (countryCities.length > 0) {
+          countryCities.forEach(loc => {
+            bounds.extend({ lat: loc.lat, lng: loc.lng })
+          })
+        }
+        // Always zoom to country bounds
+        map.fitBounds(bounds, 50)
+      }
+    } else if (countryCities.length > 0) {
+      // Fallback: zoom to cities if country bounds not available
       const bounds = new google.maps.LatLngBounds()
       countryCities.forEach(loc => {
         bounds.extend({ lat: loc.lat, lng: loc.lng })
       })
       map.fitBounds(bounds, 50)
+    } else {
+      // If no GeoJSON and no cities, try to zoom using country code
+      const countryCode = getCountryCodeFromName(selectedCountry || '')
+      if (countryCode && countriesList.length > 0) {
+        const country = countriesList.find(c => c.isoCode === countryCode)
+        if (country) {
+          // Use a default zoom level for the country
+          // You might want to get country center from locationData
+          map.setZoom(6)
+        }
+      }
     }
-  }, [countryGeoJSON, viewMode, selectedCountry, selectedState, visitedLocations])
+  }, [countryGeoJSON, viewMode, selectedCountry, selectedState, selectedCity, visitedLocations])
 
   // Render state view with city markers
   useEffect(() => {
@@ -416,18 +489,61 @@ const FogOfWarMap = ({
       })
     })
 
-    // Fit bounds to show all cities in state
-    if (stateCities.length > 0) {
-      const bounds = new google.maps.LatLngBounds()
-      stateCities.forEach(loc => {
-        bounds.extend({ lat: loc.lat, lng: loc.lng })
-      })
-      map.fitBounds(bounds, 50)
-    } else if (stateCities.length === 0 && mapInstanceRef.current) {
-      // If no cities, zoom to a default state view (you might want to get state bounds from GeoJSON)
-      map.setZoom(8)
+    // Filter by selected city if provided
+    let citiesToShow = stateCities
+    let singleCitySelected = false
+    if (selectedCity) {
+      citiesToShow = stateCities.filter(loc => 
+        loc.name && loc.name.toLowerCase().includes(selectedCity.toLowerCase())
+      )
+      
+      // If a specific city is selected and found, zoom to that city
+      if (citiesToShow.length === 1) {
+        const city = citiesToShow[0]
+        map.setCenter({ lat: city.lat, lng: city.lng })
+        map.setZoom(12) // Close zoom for city view
+        singleCitySelected = true
+      }
     }
-  }, [viewMode, selectedCountry, selectedState, visitedLocations])
+
+    // Fit bounds to show all cities in state (or selected city) - skip if single city already zoomed
+    if (!singleCitySelected) {
+      if (citiesToShow.length > 1 || (citiesToShow.length > 0 && !selectedCity)) {
+        const bounds = new google.maps.LatLngBounds()
+        citiesToShow.forEach(loc => {
+          bounds.extend({ lat: loc.lat, lng: loc.lng })
+        })
+        map.fitBounds(bounds, 50)
+      } else if (stateCities.length > 0 && citiesToShow.length === 0) {
+        // If city filter has no results but state has cities, show all state cities
+        const bounds = new google.maps.LatLngBounds()
+        stateCities.forEach(loc => {
+          bounds.extend({ lat: loc.lat, lng: loc.lng })
+        })
+        map.fitBounds(bounds, 50)
+      } else if (stateCities.length === 0) {
+        // If no cities, try to get state center from locationData
+        const countryCode = getCountryCodeFromName(selectedCountry || '')
+        if (countryCode) {
+          const states = getStatesByCountryCode(countryCode)
+          const state = states.find(s => s.name === selectedState)
+          if (state && state.latitude && state.longitude) {
+            map.setCenter({ 
+              lat: parseFloat(state.latitude), 
+              lng: parseFloat(state.longitude) 
+            })
+            map.setZoom(8)
+          } else {
+            // Default zoom if state coordinates not available
+            map.setZoom(8)
+          }
+        } else {
+          // Default zoom if country code not found
+          map.setZoom(8)
+        }
+      }
+    }
+  }, [viewMode, selectedCountry, selectedState, selectedCity, visitedLocations])
 
   if (mapError) {
     return (
