@@ -97,3 +97,125 @@ CREATE TRIGGER on_auth_user_created
 -- Allow the trigger function to insert profiles (bypasses RLS)
 -- This is safe because it only runs server-side when a user is created
 
+-- Create itineraries table
+CREATE TABLE IF NOT EXISTS public.itineraries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  location text NOT NULL,
+  start_date date NULL,
+  end_date date NULL,
+  description text NULL,
+  is_smart_planned boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT itineraries_pkey PRIMARY KEY (id)
+) TABLESPACE pg_default;
+
+-- Create itinerary_items table
+CREATE TABLE IF NOT EXISTS public.itinerary_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  itinerary_id uuid NOT NULL REFERENCES public.itineraries(id) ON DELETE CASCADE,
+  site_id text NOT NULL,
+  site_name text NOT NULL,
+  site_description text NULL,
+  site_address text NULL,
+  site_category text NULL,
+  site_heritage_type text NULL,
+  site_rating numeric(3, 1) NULL,
+  location_lat numeric(10, 7) NOT NULL,
+  location_lng numeric(10, 7) NOT NULL,
+  order_index integer NOT NULL DEFAULT 0,
+  visit_date date NULL,
+  visit_time time NULL,
+  notes text NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT itinerary_items_pkey PRIMARY KEY (id)
+) TABLESPACE pg_default;
+
+-- Enable Row Level Security for itineraries
+ALTER TABLE public.itineraries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.itinerary_items ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view own itineraries" ON public.itineraries;
+DROP POLICY IF EXISTS "Users can insert own itineraries" ON public.itineraries;
+DROP POLICY IF EXISTS "Users can update own itineraries" ON public.itineraries;
+DROP POLICY IF EXISTS "Users can delete own itineraries" ON public.itineraries;
+
+DROP POLICY IF EXISTS "Users can view own itinerary items" ON public.itinerary_items;
+DROP POLICY IF EXISTS "Users can insert own itinerary items" ON public.itinerary_items;
+DROP POLICY IF EXISTS "Users can update own itinerary items" ON public.itinerary_items;
+DROP POLICY IF EXISTS "Users can delete own itinerary items" ON public.itinerary_items;
+
+-- Policies for itineraries
+CREATE POLICY "Users can view own itineraries" ON public.itineraries
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own itineraries" ON public.itineraries
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own itineraries" ON public.itineraries
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own itineraries" ON public.itineraries
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Policies for itinerary_items
+CREATE POLICY "Users can view own itinerary items" ON public.itinerary_items
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.itineraries 
+      WHERE itineraries.id = itinerary_items.itinerary_id 
+      AND itineraries.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert own itinerary items" ON public.itinerary_items
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.itineraries 
+      WHERE itineraries.id = itinerary_items.itinerary_id 
+      AND itineraries.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update own itinerary items" ON public.itinerary_items
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.itineraries 
+      WHERE itineraries.id = itinerary_items.itinerary_id 
+      AND itineraries.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete own itinerary items" ON public.itinerary_items
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM public.itineraries 
+      WHERE itineraries.id = itinerary_items.itinerary_id 
+      AND itineraries.user_id = auth.uid()
+    )
+  );
+
+-- Create trigger to update updated_at for itineraries
+DROP TRIGGER IF EXISTS update_itineraries_updated_at ON public.itineraries;
+CREATE TRIGGER update_itineraries_updated_at
+  BEFORE UPDATE ON public.itineraries
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Create trigger to update updated_at for itinerary_items
+DROP TRIGGER IF EXISTS update_itinerary_items_updated_at ON public.itinerary_items;
+CREATE TRIGGER update_itinerary_items_updated_at
+  BEFORE UPDATE ON public.itinerary_items
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_itineraries_user_id ON public.itineraries(user_id);
+CREATE INDEX IF NOT EXISTS idx_itineraries_created_at ON public.itineraries(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_itinerary_items_itinerary_id ON public.itinerary_items(itinerary_id);
+CREATE INDEX IF NOT EXISTS idx_itinerary_items_order_index ON public.itinerary_items(itinerary_id, order_index);
+
