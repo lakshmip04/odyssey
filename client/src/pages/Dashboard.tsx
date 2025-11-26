@@ -267,7 +267,7 @@ const Dashboard = () => {
             >
               <BentoCard 
                 className="bg-[#D4D4D8] flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-[#A1A1AA] transition-colors"
-                onClick={() => navigate('/story')}
+                onClick={() => navigate('/passport')}
               >
                 <div className="relative w-full h-full flex items-center justify-center">
                   <div className="text-6xl md:text-8xl font-black text-gray-600/30 absolute">

@@ -36,11 +36,13 @@ const Navbar = () => {
                 >
                   Planner
                 </Link>
+                
+                
                 <Link
-                  to="/story"
+                  to="/story-video"
                   className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
                 >
-                  Story Mode
+                  Brahmi
                 </Link>
                 <button
                   onClick={handleSignOut}
