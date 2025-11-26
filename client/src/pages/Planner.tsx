@@ -12,6 +12,7 @@ import {
   markItineraryCompleted,
   type Itinerary 
 } from '../lib/itineraryApi'
+import { createJournalEntry } from '../lib/travelJournalApi'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import LocationSearch from '../components/LocationSearch'
@@ -115,6 +116,23 @@ const Planner = () => {
 
   const handleRemoveFromItinerary = (id: string) => {
     setItinerary(itinerary.filter(site => site.id !== id))
+  }
+
+  const handleMarkAsVisited = async (site: HeritageSite) => {
+    try {
+      await createJournalEntry({
+        site_id: site.id,
+        site_name: site.name,
+        location_lat: site.location.lat,
+        location_lng: site.location.lng,
+        location_name: site.address || selectedLocation,
+        notes: `Visited ${site.name}`,
+      })
+      alert(`${site.name} has been added to your travel journal!`)
+    } catch (error) {
+      console.error('Error marking site as visited:', error)
+      alert('Failed to mark site as visited. Please try again.')
+    }
   }
 
   const handleClearItinerary = () => {
@@ -424,6 +442,7 @@ const Planner = () => {
                             site={site}
                             index={index}
                             onAddToItinerary={handleAddToItinerary}
+                            onMarkAsVisited={handleMarkAsVisited}
                             isInItinerary={isSiteInItinerary(site.id)}
                           />
                         ))}

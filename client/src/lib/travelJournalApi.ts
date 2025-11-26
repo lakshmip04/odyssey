@@ -131,7 +131,7 @@ export async function updateJournalEntry(
   entryId: string,
   updates: Partial<Pick<TravelJournalEntry, 'notes' | 'photos' | 'ai_translations'>>
 ): Promise<TravelJournalEntry> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('travel_journal_entries')
     .update(updates)
     .eq('id', entryId)
@@ -142,7 +142,11 @@ export async function updateJournalEntry(
     throw new Error(`Failed to update journal entry: ${error.message}`)
   }
 
-  return {} as TravelJournalEntry // Will be populated by select
+  if (!data) {
+    throw new Error('No data returned from update')
+  }
+
+  return data
 }
 
 // Delete a journal entry

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { MapPin, Star, Plus, Check } from 'lucide-react'
+import { MapPin, Star, Plus, Check, BookOpen } from 'lucide-react'
 import { HeritageSite } from '../lib/placesApi'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
@@ -7,13 +7,15 @@ import { Card } from './ui/card'
 interface HeritageSiteCardProps {
   site: HeritageSite
   onAddToItinerary?: (site: HeritageSite) => void
+  onMarkAsVisited?: (site: HeritageSite) => void
   isInItinerary?: boolean
   index?: number
 }
 
 const HeritageSiteCard = ({ 
   site, 
-  onAddToItinerary, 
+  onAddToItinerary,
+  onMarkAsVisited,
   isInItinerary = false,
   index = 0 
 }: HeritageSiteCardProps) => {
@@ -80,28 +82,40 @@ const HeritageSiteCard = ({
             </div>
           )}
 
-          <Button
-            onClick={() => onAddToItinerary?.(site)}
-            disabled={isInItinerary}
-            className={`w-full ${
-              isInItinerary
-                ? 'bg-green-500 hover:bg-green-600'
-                : 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70'
-            }`}
-            size="sm"
-          >
-            {isInItinerary ? (
-              <>
-                <Check className="w-4 h-4 mr-2" />
-                Added to Itinerary
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4 mr-2" />
-                Add to Itinerary
-              </>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => onAddToItinerary?.(site)}
+              disabled={isInItinerary}
+              className={`flex-1 ${
+                isInItinerary
+                  ? 'bg-green-500 hover:bg-green-600'
+                  : 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70'
+              }`}
+              size="sm"
+            >
+              {isInItinerary ? (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Added
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add to Itinerary
+                </>
+              )}
+            </Button>
+            {onMarkAsVisited && (
+              <Button
+                onClick={() => onMarkAsVisited(site)}
+                variant="outline"
+                size="sm"
+                className="bg-[#BEF265] hover:bg-[#A3E635] text-green-900 border-[#BEF265]"
+              >
+                <BookOpen className="w-4 h-4" />
+              </Button>
             )}
-          </Button>
+          </div>
         </div>
       </Card>
     </motion.div>
