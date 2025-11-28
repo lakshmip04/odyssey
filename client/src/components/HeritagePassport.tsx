@@ -51,6 +51,11 @@ const HeritagePassport = ({ badges }: HeritagePassportProps) => {
 
   const unlockedBadges = badges.filter(b => b.unlocked)
   const lockedBadges = badges.filter(b => !b.unlocked)
+  
+  // Fix: Calculate stats correctly
+  const totalBadges = badges.length
+  const unlockedCount = unlockedBadges.length
+  const progressPercentage = totalBadges > 0 ? Math.round((unlockedCount / totalBadges) * 100) : 0
 
   return (
     <div className="space-y-6">
@@ -60,7 +65,7 @@ const HeritagePassport = ({ badges }: HeritagePassportProps) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Total Badges</p>
-              <p className="text-2xl font-bold text-gray-900">{badges.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{totalBadges}</p>
             </div>
             <Award className="w-8 h-8 text-purple-600" />
           </div>
@@ -69,7 +74,7 @@ const HeritagePassport = ({ badges }: HeritagePassportProps) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Unlocked</p>
-              <p className="text-2xl font-bold text-gray-900">{unlockedBadges.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{unlockedCount}</p>
             </div>
             <Trophy className="w-8 h-8 text-green-600" />
           </div>
@@ -79,7 +84,7 @@ const HeritagePassport = ({ badges }: HeritagePassportProps) => {
             <div>
               <p className="text-sm text-gray-600">Progress</p>
               <p className="text-2xl font-bold text-gray-900">
-                {badges.length > 0 ? Math.round((unlockedBadges.length / badges.length) * 100) : 0}%
+                {progressPercentage}%
               </p>
             </div>
             <BookOpen className="w-8 h-8 text-blue-600" />

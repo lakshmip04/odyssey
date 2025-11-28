@@ -280,10 +280,18 @@ This appears to be a temple dedicated to Lord Rama with Dravidian architecture. 
     setIsProcessing(true)
     
     // Simulate video generation
-    setTimeout(() => {
+    setTimeout(async () => {
       setVideoHistory('generated')
       setIsProcessing(false)
       alert('Video history generated! (In production, this would create an AI-generated historical video)')
+      
+      // Check and update badges asynchronously
+      try {
+        const { checkAndUpdateAllBadges } = await import('../lib/badgesApi')
+        await checkAndUpdateAllBadges()
+      } catch (err) {
+        console.warn('Failed to update badges:', err)
+      }
     }, 3000)
   }
 

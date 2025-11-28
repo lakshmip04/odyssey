@@ -81,6 +81,13 @@ export async function createJournalEntry(
     throw new Error(`Failed to create journal entry: ${error.message}`)
   }
 
+  // Check and update badges asynchronously (don't block on this)
+  import('../lib/badgesApi').then(({ checkAndUpdateAllBadges }) => {
+    checkAndUpdateAllBadges().catch(err => {
+      console.warn('Failed to update badges:', err)
+    })
+  })
+
   return entry
 }
 

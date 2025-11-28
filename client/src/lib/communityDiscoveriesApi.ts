@@ -69,7 +69,16 @@ export async function createCommunityDiscovery(
   }
 
   // Fetch with user profile and counts
-  return await getCommunityDiscovery(discovery.id)
+  const result = await getCommunityDiscovery(discovery.id)
+
+  // Check and update badges asynchronously (don't block on this)
+  import('../lib/badgesApi').then(({ checkAndUpdateAllBadges }) => {
+    checkAndUpdateAllBadges().catch(err => {
+      console.warn('Failed to update badges:', err)
+    })
+  })
+
+  return result
 }
 
 // Get a single discovery with user info and counts
@@ -222,6 +231,13 @@ export async function likeDiscovery(discoveryId: string): Promise<void> {
     if (error.code !== '23505') { // Unique constraint violation
       throw new Error(`Failed to like discovery: ${error.message}`)
     }
+  } else {
+    // Check badges for the discovery owner (async, don't block)
+    import('../lib/badgesApi').then(({ checkAndUpdateAllBadges }) => {
+      checkAndUpdateAllBadges().catch(err => {
+        console.warn('Failed to update badges:', err)
+      })
+    })
   }
 }
 

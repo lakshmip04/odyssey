@@ -5,15 +5,16 @@ import { useSupabaseAuth } from '../hooks/useSupabaseAuth'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import HeritagePassport from '../components/HeritagePassport'
-import { getUserJournalEntries } from '../lib/travelJournalApi'
+import { getUserBadgesWithDetails, checkAndUpdateAllBadges } from '../lib/badgesApi'
 import type { Badge } from '../components/HeritagePassport'
-import { Award } from 'lucide-react'
+import { Award, Loader2 } from 'lucide-react'
 import { RetroGrid } from '../components/ui/retro-grid'
 
 const HeritagePassportPage = () => {
   const navigate = useNavigate()
   const { loading, isAuthenticated } = useSupabaseAuth()
   const [badges, setBadges] = useState<Badge[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -28,113 +29,43 @@ const HeritagePassportPage = () => {
   }, [isAuthenticated])
 
   const loadBadges = async () => {
+    setIsLoading(true)
     try {
-      // Get user's journal entries to calculate badges
-      const entries = await getUserJournalEntries()
+      // First, check and update all badges (automation)
+      await checkAndUpdateAllBadges()
       
-      // Calculate badge progress based on user activity
-      const decipheredCount = entries.filter(e => e.ai_translations).length
-      const visitedCount = entries.length
+      // Then fetch user badges with details
+      const badgesWithDetails = await getUserBadgesWithDetails()
       
-      // Define badges
-      const allBadges: Badge[] = [
-        {
-          id: 'first-discovery',
-          name: 'First Discovery',
-          description: 'Decipher your first monument inscription',
-          icon: '🔍',
-          unlocked: decipheredCount >= 1,
-          progress: Math.min(decipheredCount, 1),
-          maxProgress: 1,
-          rarity: 'common',
-          unlockedAt: decipheredCount >= 1 ? new Date() : undefined,
-        },
-        {
-          id: 'mauryan-historian',
-          name: 'Mauryan Historian',
-          description: 'Translate 5 Ashokan Edicts',
-          icon: '📜',
-          unlocked: decipheredCount >= 5,
-          progress: Math.min(decipheredCount, 5),
-          maxProgress: 5,
-          rarity: 'rare',
-          unlockedAt: decipheredCount >= 5 ? new Date() : undefined,
-        },
-        {
-          id: 'temple-explorer',
-          name: 'Temple Explorer',
-          description: 'Visit and decipher 10 temples',
-          icon: '🛕',
-          unlocked: visitedCount >= 10,
-          progress: Math.min(visitedCount, 10),
-          maxProgress: 10,
-          rarity: 'rare',
-          unlockedAt: visitedCount >= 10 ? new Date() : undefined,
-        },
-        {
-          id: 'script-master',
-          name: 'Script Master',
-          description: 'Decipher inscriptions in 5 different languages',
-          icon: '✍️',
-          unlocked: false, // Would need to track languages
-          progress: 0,
-          maxProgress: 5,
-          rarity: 'epic',
-        },
-        {
-          id: 'heritage-scholar',
-          name: 'Heritage Scholar',
-          description: 'Decipher 25 monuments',
-          icon: '🎓',
-          unlocked: decipheredCount >= 25,
-          progress: Math.min(decipheredCount, 25),
-          maxProgress: 25,
-          rarity: 'epic',
-          unlockedAt: decipheredCount >= 25 ? new Date() : undefined,
-        },
-        {
-          id: 'time-traveler',
-          name: 'Time Traveler',
-          description: 'Generate video history for 10 monuments',
-          icon: '⏰',
-          unlocked: false, // Would need to track video generations
-          progress: 0,
-          maxProgress: 10,
-          rarity: 'legendary',
-        },
-        {
-          id: 'community-legend',
-          name: 'Community Legend',
-          description: 'Get 100 likes on your discoveries',
-          icon: '👑',
-          unlocked: false, // Would need to track community likes
-          progress: 0,
-          maxProgress: 100,
-          rarity: 'legendary',
-        },
-        {
-          id: 'world-explorer',
-          name: 'World Explorer',
-          description: 'Visit monuments in 10 different countries',
-          icon: '🌍',
-          unlocked: false, // Would need to track countries
-          progress: 0,
-          maxProgress: 10,
-          rarity: 'epic',
-        },
-      ]
+      // Convert to Badge format expected by component
+      const allBadges: Badge[] = badgesWithDetails.map(b => ({
+        id: b.id,
+        name: b.name,
+        description: b.description,
+        icon: b.icon,
+        unlocked: b.unlocked,
+        progress: b.progress,
+        maxProgress: b.maxProgress,
+        rarity: b.rarity,
+        unlockedAt: b.unlockedAt,
+      }))
 
       setBadges(allBadges)
     } catch (error) {
       console.error('Error loading badges:', error)
       setBadges([])
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#D4D4D8]">
-        <div className="text-xl">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          <div className="text-xl">Loading badges...</div>
+        </div>
       </div>
     )
   }

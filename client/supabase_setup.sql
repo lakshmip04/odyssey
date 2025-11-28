@@ -383,3 +383,91 @@ CREATE INDEX IF NOT EXISTS idx_community_discovery_likes_user_id ON public.commu
 CREATE INDEX IF NOT EXISTS idx_community_discovery_learned_discovery_id ON public.community_discovery_learned(discovery_id);
 CREATE INDEX IF NOT EXISTS idx_community_discovery_learned_user_id ON public.community_discovery_learned(user_id);
 
+-- Create badges table
+CREATE TABLE IF NOT EXISTS public.badges (
+  id text NOT NULL,
+  name text NOT NULL,
+  description text NOT NULL,
+  icon text NOT NULL,
+  rarity text NOT NULL CHECK (rarity IN ('common', 'rare', 'epic', 'legendary')),
+  max_progress integer NOT NULL DEFAULT 1,
+  badge_type text NOT NULL CHECK (badge_type IN ('decipher_count', 'visit_count', 'language_count', 'video_count', 'likes_count', 'country_count', 'ashokan_count')),
+  badge_config jsonb NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT badges_pkey PRIMARY KEY (id)
+) TABLESPACE pg_default;
+
+-- Create user_badges table to track which badges users have unlocked
+CREATE TABLE IF NOT EXISTS public.user_badges (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  badge_id text NOT NULL REFERENCES public.badges(id) ON DELETE CASCADE,
+  progress integer NOT NULL DEFAULT 0,
+  unlocked boolean NOT NULL DEFAULT false,
+  unlocked_at timestamp with time zone NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_badges_pkey PRIMARY KEY (id),
+  CONSTRAINT user_badges_unique UNIQUE (user_id, badge_id)
+) TABLESPACE pg_default;
+
+-- Enable Row Level Security for badges
+ALTER TABLE public.badges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_badges ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Anyone can view badges" ON public.badges;
+DROP POLICY IF EXISTS "Users can view own badges" ON public.user_badges;
+DROP POLICY IF EXISTS "Users can update own badges" ON public.user_badges;
+
+-- Policies for badges (public read)
+CREATE POLICY "Anyone can view badges" ON public.badges
+  FOR SELECT USING (true);
+
+-- Policies for user_badges
+CREATE POLICY "Users can view own badges" ON public.user_badges
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own badges" ON public.user_badges
+  FOR UPDATE USING (auth.uid() = user_id);
+
+-- Create trigger to update updated_at for badges
+DROP TRIGGER IF EXISTS update_badges_updated_at ON public.badges;
+CREATE TRIGGER update_badges_updated_at
+  BEFORE UPDATE ON public.badges
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Create trigger to update updated_at for user_badges
+DROP TRIGGER IF EXISTS update_user_badges_updated_at ON public.user_badges;
+CREATE TRIGGER update_user_badges_updated_at
+  BEFORE UPDATE ON public.user_badges
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Create indexes for badges
+CREATE INDEX IF NOT EXISTS idx_user_badges_user_id ON public.user_badges(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_badges_badge_id ON public.user_badges(badge_id);
+CREATE INDEX IF NOT EXISTS idx_user_badges_unlocked ON public.user_badges(user_id, unlocked);
+
+-- Insert default badges
+INSERT INTO public.badges (id, name, description, icon, rarity, max_progress, badge_type, badge_config) VALUES
+  ('first-discovery', 'First Discovery', 'Decipher your first monument inscription', '🔍', 'common', 1, 'decipher_count', '{"threshold": 1}'::jsonb),
+  ('mauryan-historian', 'Mauryan Historian', 'Translate 5 Ashokan Edicts', '📜', 'rare', 5, 'ashokan_count', '{"threshold": 5}'::jsonb),
+  ('temple-explorer', 'Temple Explorer', 'Visit and decipher 10 temples', '🛕', 'rare', 10, 'visit_count', '{"threshold": 10}'::jsonb),
+  ('script-master', 'Script Master', 'Decipher inscriptions in 5 different languages', '✍️', 'epic', 5, 'language_count', '{"threshold": 5}'::jsonb),
+  ('heritage-scholar', 'Heritage Scholar', 'Decipher 25 monuments', '🎓', 'epic', 25, 'decipher_count', '{"threshold": 25}'::jsonb),
+  ('time-traveler', 'Time Traveler', 'Generate video history for 10 monuments', '⏰', 'legendary', 10, 'video_count', '{"threshold": 10}'::jsonb),
+  ('community-legend', 'Community Legend', 'Get 100 likes on your discoveries', '👑', 'legendary', 100, 'likes_count', '{"threshold": 100}'::jsonb),
+  ('world-explorer', 'World Explorer', 'Visit monuments in 10 different countries', '🌍', 'epic', 10, 'country_count', '{"threshold": 10}'::jsonb)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  icon = EXCLUDED.icon,
+  rarity = EXCLUDED.rarity,
+  max_progress = EXCLUDED.max_progress,
+  badge_type = EXCLUDED.badge_type,
+  badge_config = EXCLUDED.badge_config,
+  updated_at = now();
+
