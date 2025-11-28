@@ -276,3 +276,110 @@ CREATE INDEX IF NOT EXISTS idx_travel_journal_entries_user_id ON public.travel_j
 CREATE INDEX IF NOT EXISTS idx_travel_journal_entries_visited_at ON public.travel_journal_entries(visited_at DESC);
 CREATE INDEX IF NOT EXISTS idx_travel_journal_entries_location ON public.travel_journal_entries(location_lat, location_lng);
 
+-- Create community_discoveries table
+CREATE TABLE IF NOT EXISTS public.community_discoveries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type text NOT NULL DEFAULT 'discovery' CHECK (type IN ('discovery', 'post')),
+  site_name text NOT NULL,
+  location text NULL,
+  location_lat numeric(10, 7) NULL,
+  location_lng numeric(10, 7) NULL,
+  original_text text NULL,
+  translated_text text NULL,
+  description text NULL,
+  image_url text NULL,
+  video_url text NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT community_discoveries_pkey PRIMARY KEY (id)
+) TABLESPACE pg_default;
+
+-- Create community_discovery_likes table for tracking likes
+CREATE TABLE IF NOT EXISTS public.community_discovery_likes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  discovery_id uuid NOT NULL REFERENCES public.community_discoveries(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT community_discovery_likes_pkey PRIMARY KEY (id),
+  CONSTRAINT community_discovery_likes_unique UNIQUE (discovery_id, user_id)
+) TABLESPACE pg_default;
+
+-- Create community_discovery_learned table for tracking learned status
+CREATE TABLE IF NOT EXISTS public.community_discovery_learned (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  discovery_id uuid NOT NULL REFERENCES public.community_discoveries(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT community_discovery_learned_pkey PRIMARY KEY (id),
+  CONSTRAINT community_discovery_learned_unique UNIQUE (discovery_id, user_id)
+) TABLESPACE pg_default;
+
+-- Enable Row Level Security for community_discoveries
+ALTER TABLE public.community_discoveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.community_discovery_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.community_discovery_learned ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Anyone can view community discoveries" ON public.community_discoveries;
+DROP POLICY IF EXISTS "Users can insert own discoveries" ON public.community_discoveries;
+DROP POLICY IF EXISTS "Users can update own discoveries" ON public.community_discoveries;
+DROP POLICY IF EXISTS "Users can delete own discoveries" ON public.community_discoveries;
+
+DROP POLICY IF EXISTS "Anyone can view discovery likes" ON public.community_discovery_likes;
+DROP POLICY IF EXISTS "Users can insert own likes" ON public.community_discovery_likes;
+DROP POLICY IF EXISTS "Users can delete own likes" ON public.community_discovery_likes;
+
+DROP POLICY IF EXISTS "Anyone can view discovery learned" ON public.community_discovery_learned;
+DROP POLICY IF EXISTS "Users can insert own learned" ON public.community_discovery_learned;
+DROP POLICY IF EXISTS "Users can delete own learned" ON public.community_discovery_learned;
+
+-- Policies for community_discoveries - public read, authenticated write
+CREATE POLICY "Anyone can view community discoveries" ON public.community_discoveries
+  FOR SELECT USING (true);
+
+CREATE POLICY "Users can insert own discoveries" ON public.community_discoveries
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own discoveries" ON public.community_discoveries
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own discoveries" ON public.community_discoveries
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Policies for community_discovery_likes
+CREATE POLICY "Anyone can view discovery likes" ON public.community_discovery_likes
+  FOR SELECT USING (true);
+
+CREATE POLICY "Users can insert own likes" ON public.community_discovery_likes
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own likes" ON public.community_discovery_likes
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Policies for community_discovery_learned
+CREATE POLICY "Anyone can view discovery learned" ON public.community_discovery_learned
+  FOR SELECT USING (true);
+
+CREATE POLICY "Users can insert own learned" ON public.community_discovery_learned
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own learned" ON public.community_discovery_learned
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Create trigger to update updated_at for community_discoveries
+DROP TRIGGER IF EXISTS update_community_discoveries_updated_at ON public.community_discoveries;
+CREATE TRIGGER update_community_discoveries_updated_at
+  BEFORE UPDATE ON public.community_discoveries
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Create indexes for community_discoveries
+CREATE INDEX IF NOT EXISTS idx_community_discoveries_user_id ON public.community_discoveries(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_discoveries_created_at ON public.community_discoveries(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_community_discoveries_type ON public.community_discoveries(type);
+CREATE INDEX IF NOT EXISTS idx_community_discovery_likes_discovery_id ON public.community_discovery_likes(discovery_id);
+CREATE INDEX IF NOT EXISTS idx_community_discovery_likes_user_id ON public.community_discovery_likes(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_discovery_learned_discovery_id ON public.community_discovery_learned(discovery_id);
+CREATE INDEX IF NOT EXISTS idx_community_discovery_learned_user_id ON public.community_discovery_learned(user_id);
+

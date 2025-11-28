@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth'
@@ -16,39 +16,37 @@ import {
   BookOpen,
   Loader2,
   Play,
-  Download
+  Download,
+  Image as ImageIcon
 } from 'lucide-react'
 import { Card } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { RetroGrid } from '../components/ui/retro-grid'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
+import {
+  getAllCommunityDiscoveries,
+  likeDiscovery,
+  unlikeDiscovery,
+  markDiscoveryAsLearned,
+  unmarkDiscoveryAsLearned,
+  createCommunityDiscovery,
+  type CommunityDiscovery
+} from '../lib/communityDiscoveriesApi'
+import { uploadPhoto } from '../lib/storageApi'
 
-interface CommunityDiscovery {
-  id: string
-  user_id: string
-  user_name: string
-  user_avatar?: string
-  site_name: string
-  location: string
-  original_text?: string
-  translated_text: string
-  image_url?: string
-  video_url?: string
-  likes: number
-  is_liked: boolean
-  learned_count: number
-  is_learned: boolean
-  description?: string
-  created_at: Date
-}
 
 const CommunityDiscoveries = () => {
   const navigate = useNavigate()
   const { loading, isAuthenticated, user } = useSupabaseAuth()
   const [discoveries, setDiscoveries] = useState<CommunityDiscovery[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isPublishOpen, setIsPublishOpen] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [publishType, setPublishType] = useState<'discovery' | 'post'>('discovery')
+  const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null)
+  const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null)
   const [publishForm, setPublishForm] = useState({
     site_name: '',
     location: '',
@@ -58,6 +56,7 @@ const CommunityDiscoveries = () => {
     image_url: '',
     video_url: '',
   })
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -72,111 +71,138 @@ const CommunityDiscoveries = () => {
   }, [isAuthenticated])
 
   const loadDiscoveries = async () => {
-    // Mock data - in production, fetch from Supabase
-    const mockDiscoveries: CommunityDiscovery[] = [
-      {
-        id: '1',
-        user_id: 'user1',
-        user_name: 'Traveler123',
-        site_name: 'Ashokan Edict at Sarnath',
-        location: 'Sarnath, India',
-        original_text: 'धम्म लिपि...',
-        translated_text: 'The Dhamma script... This edict speaks of the principles of righteousness and moral conduct.',
-        description: 'Discovered this ancient Ashokan edict during my visit. The translation reveals fascinating insights into ancient governance.',
-        likes: 234,
-        is_liked: false,
-        learned_count: 89,
-        is_learned: false,
-        created_at: new Date('2024-01-15'),
-      },
-      {
-        id: '2',
-        user_id: 'user2',
-        user_name: 'HeritageExplorer',
-        site_name: 'Temple Inscription at Hampi',
-        location: 'Hampi, India',
-        original_text: 'श्री विरुपाक्ष...',
-        translated_text: 'Shri Virupaksha... This temple inscription dates back to the 14th century and describes the temple\'s construction.',
-        description: 'Deciphered this beautiful temple inscription. The architectural details mentioned are still visible today!',
-        likes: 189,
-        is_liked: true,
-        learned_count: 67,
-        is_learned: true,
-        video_url: 'generated',
-        created_at: new Date('2024-01-20'),
-      },
-      {
-        id: '3',
-        user_id: 'user3',
-        user_name: 'ScriptScholar',
-        site_name: 'Brahmi Script at Sanchi',
-        location: 'Sanchi, India',
-        original_text: 'बुद्धं शरणं...',
-        translated_text: 'Buddham Sharanam... This ancient Buddhist inscription is one of the earliest examples of Brahmi script.',
-        description: 'An incredible find! This inscription provides crucial evidence about the spread of Buddhism in ancient India.',
-        likes: 156,
-        is_liked: false,
-        learned_count: 45,
-        is_learned: false,
-        created_at: new Date('2024-01-25'),
-      },
-    ]
-    setDiscoveries(mockDiscoveries)
+    setIsLoading(true)
+    try {
+      const data = await getAllCommunityDiscoveries()
+      setDiscoveries(data)
+    } catch (error) {
+      console.error('Error loading discoveries:', error)
+      alert('Failed to load discoveries. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleLike = async (discoveryId: string) => {
-    setDiscoveries(prev => prev.map(d => 
-      d.id === discoveryId 
-        ? { 
-            ...d, 
-            is_liked: !d.is_liked,
-            likes: d.is_liked ? d.likes - 1 : d.likes + 1
-          }
-        : d
-    ))
-    // In production, call API to like/unlike
+    const discovery = discoveries.find(d => d.id === discoveryId)
+    if (!discovery) return
+
+    try {
+      if (discovery.is_liked) {
+        await unlikeDiscovery(discoveryId)
+        setDiscoveries(prev => prev.map(d => 
+          d.id === discoveryId 
+            ? { ...d, is_liked: false, likes: Math.max(0, d.likes - 1) }
+            : d
+        ))
+      } else {
+        await likeDiscovery(discoveryId)
+        setDiscoveries(prev => prev.map(d => 
+          d.id === discoveryId 
+            ? { ...d, is_liked: true, likes: d.likes + 1 }
+            : d
+        ))
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error)
+      alert('Failed to update like. Please try again.')
+    }
   }
 
   const handleLearn = async (discoveryId: string) => {
-    setDiscoveries(prev => prev.map(d => 
-      d.id === discoveryId 
-        ? { 
-            ...d, 
-            is_learned: !d.is_learned,
-            learned_count: d.is_learned ? d.learned_count - 1 : d.learned_count + 1
-          }
-        : d
-    ))
-    // In production, call API to mark as learned
+    const discovery = discoveries.find(d => d.id === discoveryId)
+    if (!discovery) return
+
+    try {
+      if (discovery.is_learned) {
+        await unmarkDiscoveryAsLearned(discoveryId)
+        setDiscoveries(prev => prev.map(d => 
+          d.id === discoveryId 
+            ? { ...d, is_learned: false, learned_count: Math.max(0, d.learned_count - 1) }
+            : d
+        ))
+      } else {
+        await markDiscoveryAsLearned(discoveryId)
+        setDiscoveries(prev => prev.map(d => 
+          d.id === discoveryId 
+            ? { ...d, is_learned: true, learned_count: d.learned_count + 1 }
+            : d
+        ))
+      }
+    } catch (error) {
+      console.error('Error toggling learned:', error)
+      alert('Failed to update learned status. Please try again.')
+    }
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image size should be less than 10MB')
+      return
+    }
+
+    setUploadedImageFile(file)
+    
+    // Create preview
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setUploadedImagePreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
   }
 
   const handlePublish = async () => {
-    if (!publishForm.site_name || !publishForm.translated_text) {
-      alert('Please fill in required fields')
+    if (publishType === 'discovery' && (!publishForm.site_name || !publishForm.translated_text)) {
+      alert('Please fill in required fields (Site Name and Translated Text)')
+      return
+    }
+
+    if (publishType === 'post' && (!publishForm.site_name || (!publishForm.image_url && !uploadedImageFile))) {
+      alert('Please fill in required fields (Site Name and Image)')
       return
     }
 
     setIsPublishing(true)
     
-    // Simulate API call
-    setTimeout(() => {
-      const newDiscovery: CommunityDiscovery = {
-        id: Date.now().toString(),
-        user_id: user?.id || 'current_user',
-        user_name: user?.email?.split('@')[0] || 'You',
-        site_name: publishForm.site_name,
-        location: publishForm.location,
-        original_text: publishForm.original_text,
-        translated_text: publishForm.translated_text,
-        description: publishForm.description,
-        image_url: publishForm.image_url,
-        video_url: publishForm.video_url,
-        likes: 0,
-        is_liked: false,
-        learned_count: 0,
-        is_learned: false,
-        created_at: new Date(),
+    try {
+      let imageUrl = publishForm.image_url
+
+      // Upload image if file was selected
+      if (uploadedImageFile && user) {
+        setIsUploadingImage(true)
+        try {
+          imageUrl = await uploadPhoto(uploadedImageFile, user.id, 'community-discoveries')
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError)
+          alert('Failed to upload image. Please try again.')
+          setIsUploadingImage(false)
+          setIsPublishing(false)
+          return
+        } finally {
+          setIsUploadingImage(false)
+        }
       }
+
+      const newDiscovery = await createCommunityDiscovery({
+        type: publishType,
+        site_name: publishForm.site_name,
+        location: publishForm.location || undefined,
+        original_text: publishType === 'discovery' ? publishForm.original_text || undefined : undefined,
+        translated_text: publishType === 'discovery' ? publishForm.translated_text || undefined : undefined,
+        description: publishForm.description || undefined,
+        image_url: imageUrl || undefined,
+        video_url: publishForm.video_url || undefined,
+      })
       
       setDiscoveries(prev => [newDiscovery, ...prev])
       setIsPublishOpen(false)
@@ -189,8 +215,16 @@ const CommunityDiscoveries = () => {
         image_url: '',
         video_url: '',
       })
+      setUploadedImageFile(null)
+      setUploadedImagePreview(null)
+      setPublishType('discovery')
+      await loadDiscoveries() // Reload to get the new discovery with proper counts
+    } catch (error) {
+      console.error('Error publishing discovery:', error)
+      alert('Failed to publish discovery. Please try again.')
+    } finally {
       setIsPublishing(false)
-    }, 1500)
+    }
   }
 
   if (loading) {
@@ -271,6 +305,30 @@ const CommunityDiscoveries = () => {
                       </Button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                      {/* Type Selection */}
+                      <div>
+                        <Label>Type *</Label>
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            type="button"
+                            variant={publishType === 'discovery' ? 'default' : 'outline'}
+                            onClick={() => setPublishType('discovery')}
+                            className={publishType === 'discovery' ? 'bg-[#8B5CF6] hover:bg-[#7C3AED] text-white' : ''}
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            Discovery
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={publishType === 'post' ? 'default' : 'outline'}
+                            onClick={() => setPublishType('post')}
+                            className={publishType === 'post' ? 'bg-[#8B5CF6] hover:bg-[#7C3AED] text-white' : ''}
+                          >
+                            <ImageIcon className="w-4 h-4 mr-2" />
+                            Post
+                          </Button>
+                        </div>
+                      </div>
                       <div>
                         <Label htmlFor="site_name">Monument/Site Name *</Label>
                         <Input
@@ -289,26 +347,30 @@ const CommunityDiscoveries = () => {
                           placeholder="e.g., Sarnath, India"
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="original_text">Original Text</Label>
-                        <textarea
-                          id="original_text"
-                          value={publishForm.original_text}
-                          onChange={(e) => setPublishForm({ ...publishForm, original_text: e.target.value })}
-                          placeholder="The original inscription text..."
-                          className="w-full min-h-[100px] p-3 border rounded-lg resize-y"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="translated_text">Translated Text *</Label>
-                        <textarea
-                          id="translated_text"
-                          value={publishForm.translated_text}
-                          onChange={(e) => setPublishForm({ ...publishForm, translated_text: e.target.value })}
-                          placeholder="Your translation..."
-                          className="w-full min-h-[120px] p-3 border rounded-lg resize-y"
-                        />
-                      </div>
+                      {publishType === 'discovery' && (
+                        <>
+                          <div>
+                            <Label htmlFor="original_text">Original Text</Label>
+                            <textarea
+                              id="original_text"
+                              value={publishForm.original_text}
+                              onChange={(e) => setPublishForm({ ...publishForm, original_text: e.target.value })}
+                              placeholder="The original inscription text..."
+                              className="w-full min-h-[100px] p-3 border rounded-lg resize-y"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="translated_text">Translated Text *</Label>
+                            <textarea
+                              id="translated_text"
+                              value={publishForm.translated_text}
+                              onChange={(e) => setPublishForm({ ...publishForm, translated_text: e.target.value })}
+                              placeholder="Your translation..."
+                              className="w-full min-h-[120px] p-3 border rounded-lg resize-y"
+                            />
+                          </div>
+                        </>
+                      )}
                       <div>
                         <Label htmlFor="description">Description</Label>
                         <textarea
@@ -319,16 +381,62 @@ const CommunityDiscoveries = () => {
                           className="w-full min-h-[100px] p-3 border rounded-lg resize-y"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="image_url">Image URL (optional)</Label>
+                      <div>
+                        <Label htmlFor="image">Image {publishType === 'post' ? '*' : '(optional)'}</Label>
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <input
+                              ref={imageInputRef}
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageUpload}
+                              className="hidden"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => imageInputRef.current?.click()}
+                              className="flex-1"
+                            >
+                              <ImageIcon className="w-4 h-4 mr-2" />
+                              {uploadedImageFile ? 'Change Image' : 'Upload Image'}
+                            </Button>
+                            {uploadedImageFile && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  setUploadedImageFile(null)
+                                  setUploadedImagePreview(null)
+                                  if (imageInputRef.current) {
+                                    imageInputRef.current.value = ''
+                                  }
+                                }}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                          {uploadedImagePreview && (
+                            <div className="mt-2">
+                              <img
+                                src={uploadedImagePreview}
+                                alt="Preview"
+                                className="w-full max-h-64 object-contain rounded-lg border-2 border-gray-200"
+                              />
+                            </div>
+                          )}
+                          <div className="text-sm text-gray-500">OR</div>
                           <Input
                             id="image_url"
                             value={publishForm.image_url}
                             onChange={(e) => setPublishForm({ ...publishForm, image_url: e.target.value })}
-                            placeholder="https://..."
+                            placeholder="Enter image URL (https://...)"
+                            disabled={!!uploadedImageFile}
                           />
                         </div>
+                      </div>
+                      {publishType === 'discovery' && (
                         <div>
                           <Label htmlFor="video_url">Video URL (optional)</Label>
                           <Input
@@ -338,7 +446,7 @@ const CommunityDiscoveries = () => {
                             placeholder="https://..."
                           />
                         </div>
-                      </div>
+                      )}
                     </div>
                     <div className="flex items-center justify-end gap-3 p-6 border-t">
                       <Button variant="outline" onClick={() => setIsPublishOpen(false)}>
@@ -346,13 +454,13 @@ const CommunityDiscoveries = () => {
                       </Button>
                       <Button
                         onClick={handlePublish}
-                        disabled={isPublishing}
+                        disabled={isPublishing || isUploadingImage || (publishType === 'discovery' && (!publishForm.site_name || !publishForm.translated_text)) || (publishType === 'post' && (!publishForm.site_name || (!publishForm.image_url && !uploadedImageFile)))}
                         className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white"
                       >
-                        {isPublishing ? (
+                        {isPublishing || isUploadingImage ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Publishing...
+                            {isUploadingImage ? 'Uploading Image...' : 'Publishing...'}
                           </>
                         ) : (
                           'Publish'
@@ -366,8 +474,18 @@ const CommunityDiscoveries = () => {
           </AnimatePresence>
 
           {/* Discoveries Feed */}
-          <div className="space-y-4">
-            {discoveries.map((discovery, index) => (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+            </div>
+          ) : discoveries.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600">No discoveries yet. Be the first to share!</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {discoveries.map((discovery, index) => (
               <motion.div
                 key={discovery.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -384,32 +502,46 @@ const CommunityDiscoveries = () => {
                       <div>
                         <p className="font-semibold text-gray-900">{discovery.user_name}</p>
                         <p className="text-xs text-gray-500">
-                          {discovery.created_at.toLocaleDateString()}
+                          {new Date(discovery.created_at).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
                   </div>
 
                   {/* Site Info */}
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{discovery.site_name}</h3>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-                    <MapPin className="w-4 h-4" />
-                    <span>{discovery.location}</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-xl font-bold text-gray-900">{discovery.site_name}</h3>
+                    {discovery.type === 'post' && (
+                      <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">Post</span>
+                    )}
+                    {discovery.type === 'discovery' && (
+                      <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">Discovery</span>
+                    )}
                   </div>
-
-                  {/* Original Text */}
-                  {discovery.original_text && (
-                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                      <p className="text-xs text-gray-500 mb-1">Original Text</p>
-                      <p className="text-sm text-gray-700 font-mono">{discovery.original_text}</p>
+                  {discovery.location && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                      <MapPin className="w-4 h-4" />
+                      <span>{discovery.location}</span>
                     </div>
                   )}
 
-                  {/* Translated Text */}
-                  <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <p className="text-xs text-purple-600 mb-1 font-semibold">Translation</p>
-                    <p className="text-sm text-gray-700">{discovery.translated_text}</p>
-                  </div>
+                  {/* For Discovery Type: Show Original and Translated Text */}
+                  {discovery.type === 'discovery' && (
+                    <>
+                      {discovery.original_text && (
+                        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Original Text</p>
+                          <p className="text-sm text-gray-700 font-mono whitespace-pre-wrap">{discovery.original_text}</p>
+                        </div>
+                      )}
+                      {discovery.translated_text && (
+                        <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                          <p className="text-xs text-purple-600 mb-1 font-semibold">Translation</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{discovery.translated_text}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
 
                   {/* Description */}
                   {discovery.description && (
@@ -453,19 +585,21 @@ const CommunityDiscoveries = () => {
                       <Heart className={`w-5 h-5 ${discovery.is_liked ? 'fill-current' : ''}`} />
                       <span className="text-sm font-medium">{discovery.likes}</span>
                     </button>
-                    <button
-                      onClick={() => handleLearn(discovery.id)}
-                      className={`flex items-center gap-2 transition-colors ${
-                        discovery.is_learned
-                          ? 'text-blue-500'
-                          : 'text-gray-600 hover:text-blue-500'
-                      }`}
-                    >
-                      <BookOpen className={`w-5 h-5 ${discovery.is_learned ? 'fill-current' : ''}`} />
-                      <span className="text-sm font-medium">
-                        {discovery.learned_count} learned
-                      </span>
-                    </button>
+                    {discovery.type === 'discovery' && (
+                      <button
+                        onClick={() => handleLearn(discovery.id)}
+                        className={`flex items-center gap-2 transition-colors ${
+                          discovery.is_learned
+                            ? 'text-blue-500'
+                            : 'text-gray-600 hover:text-blue-500'
+                        }`}
+                      >
+                        <BookOpen className={`w-5 h-5 ${discovery.is_learned ? 'fill-current' : ''}`} />
+                        <span className="text-sm font-medium">
+                          {discovery.learned_count} learned
+                        </span>
+                      </button>
+                    )}
                     <button className="flex items-center gap-2 text-gray-600 hover:text-purple-500 transition-colors">
                       <Share2 className="w-4 h-4" />
                       <span className="text-sm">Share</span>
@@ -473,8 +607,9 @@ const CommunityDiscoveries = () => {
                   </div>
                 </Card>
               </motion.div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 

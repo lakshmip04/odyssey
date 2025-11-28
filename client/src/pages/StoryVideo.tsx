@@ -22,7 +22,8 @@ import {
   MessageCircle,
   Send,
   History,
-  Sparkles
+  Sparkles,
+  Share2
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
@@ -30,6 +31,8 @@ import { RetroGrid } from '../components/ui/retro-grid'
 import { Select } from '../components/ui/select'
 import { Label } from '../components/ui/label'
 import { Input } from '../components/ui/input'
+import { createCommunityDiscovery } from '../lib/communityDiscoveriesApi'
+import { uploadPhoto } from '../lib/storageApi'
 
 const LANGUAGES = [
   { value: 'en', label: 'English' },
@@ -60,7 +63,7 @@ interface AnalysisResult {
 
 const StoryVideo = () => {
   const navigate = useNavigate()
-  const { loading, isAuthenticated } = useSupabaseAuth()
+  const { loading, isAuthenticated, user } = useSupabaseAuth()
   
   // Camera states
   const [isCameraActive, setIsCameraActive] = useState(false)
@@ -86,6 +89,15 @@ const StoryVideo = () => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [originalText, setOriginalText] = useState<string>('')
   const [translatedText, setTranslatedText] = useState<string>('')
+  
+  // Publish states
+  const [isPublishOpen, setIsPublishOpen] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [publishForm, setPublishForm] = useState({
+    site_name: '',
+    location: '',
+    description: '',
+  })
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -342,6 +354,108 @@ This appears to be a temple dedicated to Lord Rama with Dravidian architecture. 
     setVideoHistory(null)
     setIsPlaying(false)
     speechSynthesis.cancel()
+    setIsPublishOpen(false)
+    setPublishForm({
+      site_name: '',
+      location: '',
+      description: '',
+    })
+  }
+
+  // Convert data URL to File
+  const dataURLtoFile = (dataurl: string, filename: string): File => {
+    const arr = dataurl.split(',')
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png'
+    const bstr = atob(arr[1])
+    let n = bstr.length
+    const u8arr = new Uint8Array(n)
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n)
+    }
+    return new File([u8arr], filename, { type: mime })
+  }
+
+  // Handle publish discovery
+  const handlePublishDiscovery = async () => {
+    if (!analysisResult || !translatedText) {
+      alert('Please analyze an image first')
+      return
+    }
+
+    if (!publishForm.site_name || !translatedText) {
+      alert('Please fill in required fields (Site Name and Translated Text)')
+      return
+    }
+
+    if (!user) {
+      alert('Please log in to publish')
+      return
+    }
+
+    setIsPublishing(true)
+
+    try {
+      let imageUrl: string | undefined = undefined
+
+      // Upload image if it's a data URL (captured/uploaded image)
+      const imageToUpload = capturedImage || uploadedImage
+      if (imageToUpload && imageToUpload.startsWith('data:')) {
+        try {
+          const file = dataURLtoFile(imageToUpload, `discovery-${Date.now()}.png`)
+          imageUrl = await uploadPhoto(file, user.id, 'community-discoveries')
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError)
+          alert('Failed to upload image. Please try again.')
+          setIsPublishing(false)
+          return
+        }
+      } else if (imageToUpload) {
+        // If it's already a URL, use it directly
+        imageUrl = imageToUpload
+      }
+
+      await createCommunityDiscovery({
+        type: 'discovery',
+        site_name: publishForm.site_name,
+        location: publishForm.location || undefined,
+        original_text: originalText || analysisResult.originalText,
+        translated_text: translatedText || analysisResult.translatedText,
+        description: publishForm.description || undefined,
+        image_url: imageUrl,
+        video_url: videoHistory === 'generated' ? 'generated' : undefined,
+      })
+
+      alert('Discovery published successfully!')
+      setIsPublishOpen(false)
+      setPublishForm({
+        site_name: '',
+        location: '',
+        description: '',
+      })
+      // Optionally navigate to community page
+      // navigate('/community')
+    } catch (error) {
+      console.error('Error publishing discovery:', error)
+      alert('Failed to publish discovery. Please try again.')
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  // Open publish dialog with pre-filled data
+  const handleOpenPublish = () => {
+    if (!analysisResult) {
+      alert('Please analyze an image first')
+      return
+    }
+    
+    // Pre-fill form with analysis data
+    setPublishForm({
+      site_name: publishForm.site_name || 'Monument Discovery',
+      location: publishForm.location || '',
+      description: publishForm.description || '',
+    })
+    setIsPublishOpen(true)
   }
 
   if (loading) {
@@ -553,6 +667,13 @@ This appears to be a temple dedicated to Lord Rama with Dravidian architecture. 
                         )}
                       </Button>
                     </div>
+                    <Button
+                      onClick={handleOpenPublish}
+                      className="w-full bg-[#8B5CF6] hover:bg-[#7C3AED] text-white"
+                    >
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Publish to Community
+                    </Button>
 
                     {videoHistory === 'generated' && (
                       <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
@@ -645,6 +766,117 @@ This appears to be a temple dedicated to Lord Rama with Dravidian architecture. 
           </div>
         </div>
       </main>
+
+      {/* Publish Dialog */}
+      <AnimatePresence>
+        {isPublishOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsPublishOpen(false)}
+              className="fixed inset-0 bg-black/50 z-50"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col bg-background">
+                <div className="flex items-center justify-between p-6 border-b">
+                  <h2 className="text-2xl font-bold">Publish Your Discovery</h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsPublishOpen(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  <div>
+                    <Label htmlFor="site_name">Monument/Site Name *</Label>
+                    <Input
+                      id="site_name"
+                      value={publishForm.site_name}
+                      onChange={(e) => setPublishForm({ ...publishForm, site_name: e.target.value })}
+                      placeholder="e.g., Ashokan Edict at Sarnath"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="location">Location</Label>
+                    <Input
+                      id="location"
+                      value={publishForm.location}
+                      onChange={(e) => setPublishForm({ ...publishForm, location: e.target.value })}
+                      placeholder="e.g., Sarnath, India"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="original_text">Original Text</Label>
+                    <textarea
+                      id="original_text"
+                      value={originalText || analysisResult?.originalText || ''}
+                      readOnly
+                      className="w-full min-h-[100px] p-3 border rounded-lg resize-y bg-gray-50"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="translated_text">Translated Text *</Label>
+                    <textarea
+                      id="translated_text"
+                      value={translatedText || analysisResult?.translatedText || ''}
+                      readOnly
+                      className="w-full min-h-[120px] p-3 border rounded-lg resize-y bg-purple-50"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="description">Description</Label>
+                    <textarea
+                      id="description"
+                      value={publishForm.description}
+                      onChange={(e) => setPublishForm({ ...publishForm, description: e.target.value })}
+                      placeholder="Share your insights and experience..."
+                      className="w-full min-h-[100px] p-3 border rounded-lg resize-y"
+                    />
+                  </div>
+                  {(capturedImage || uploadedImage) && (
+                    <div>
+                      <Label>Preview Image</Label>
+                      <img
+                        src={capturedImage || uploadedImage || ''}
+                        alt="Preview"
+                        className="w-full rounded-lg border-2 border-gray-200 mt-2"
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-end gap-3 p-6 border-t">
+                  <Button variant="outline" onClick={() => setIsPublishOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handlePublishDiscovery}
+                    disabled={isPublishing || !publishForm.site_name || !translatedText}
+                    className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white"
+                  >
+                    {isPublishing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Publishing...
+                      </>
+                    ) : (
+                      'Publish'
+                    )}
+                  </Button>
+                </div>
+              </Card>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <Footer />
     </div>
