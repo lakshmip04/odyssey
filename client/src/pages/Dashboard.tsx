@@ -30,6 +30,7 @@ const Dashboard = () => {
     visitedAt: string
   }>>([])
   const [journalEntries, setJournalEntries] = useState<TravelJournalEntry[]>([])
+  const [weeklyActivity, setWeeklyActivity] = useState<number[]>([0, 0, 0, 0, 0, 0, 0])
   const [stats, setStats] = useState({
     totalTrips: 0,
     totalSites: 0,
@@ -88,10 +89,47 @@ const Dashboard = () => {
         ...prev,
         storiesCreated: entries.length,
       }))
+      
+      // Calculate weekly activity
+      calculateWeeklyActivity(entries)
     } catch (error) {
       console.error('Error loading journal entries:', error)
       setJournalEntries([])
+      setWeeklyActivity([0, 0, 0, 0, 0, 0, 0])
     }
+  }
+
+  const calculateWeeklyActivity = (entries: TravelJournalEntry[]) => {
+    // Get last 7 days
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const weekData = Array(7).fill(0)
+    
+    // Count entries for each of the last 7 days
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - (6 - i)) // Start from 6 days ago, go to today
+      
+      const dayStart = new Date(date)
+      dayStart.setHours(0, 0, 0, 0)
+      const dayEnd = new Date(date)
+      dayEnd.setHours(23, 59, 59, 999)
+      
+      // Count entries created on this day
+      const count = entries.filter(entry => {
+        const entryDate = new Date(entry.created_at)
+        return entryDate >= dayStart && entryDate <= dayEnd
+      }).length
+      
+      weekData[i] = count
+    }
+    
+    // Normalize to percentage (0-100) for visualization
+    const maxCount = Math.max(...weekData, 1) // Avoid division by zero
+    const normalizedData = weekData.map(count => Math.round((count / maxCount) * 100))
+    
+    setWeeklyActivity(normalizedData)
   }
 
   useEffect(() => {
@@ -286,17 +324,66 @@ const Dashboard = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.6 }}
             >
-              <BentoCard className="bg-[#BCF8D0] p-4">
+              <BentoCard 
+                className="bg-[#BCF8D0] p-4 cursor-pointer hover:bg-[#A7F3D0] transition-colors"
+                onClick={() => navigate('/journal')}
+              >
                 <div className="h-24 flex items-end justify-between gap-1 mb-2">
-                  {[30, 70, 60, 90, 10, 20, 30].map((height, index) => (
-                    <div
-                      key={index}
-                      className="flex-1 bg-green-500 rounded-t-lg"
-                      style={{ height: `${height}%` }}
-                    />
-                  ))}
+                  {weeklyActivity.length > 0 ? (
+                    weeklyActivity.map((height, index) => {
+                      const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+                      const today = new Date()
+                      const dayIndex = (today.getDay() + index - 6 + 7) % 7
+                      const isToday = index === 6
+                      
+                      return (
+                        <div key={index} className="flex flex-col items-center flex-1 gap-1">
+                          <div
+                            className={`w-full rounded-t-lg transition-all ${
+                              isToday ? 'bg-green-700' : 'bg-green-500'
+                            }`}
+                            style={{ 
+                              height: `${Math.max(height, 5)}%`,
+                              minHeight: '4px'
+                            }}
+                            title={`${dayLabels[dayIndex]}: ${journalEntries.filter(entry => {
+                              const entryDate = new Date(entry.created_at)
+                              const checkDate = new Date(today)
+                              checkDate.setDate(checkDate.getDate() - (6 - index))
+                              return entryDate.toDateString() === checkDate.toDateString()
+                            }).length} entries`}
+                          />
+                          <span className={`text-xs font-medium ${isToday ? 'text-green-700 font-bold' : 'text-green-600'}`}>
+                            {dayLabels[dayIndex]}
+                          </span>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    // Show empty state
+                    Array(7).fill(0).map((_, index) => {
+                      const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+                      return (
+                        <div key={index} className="flex flex-col items-center flex-1 gap-1">
+                          <div
+                            className="w-full rounded-t-lg bg-green-200"
+                            style={{ height: '5%', minHeight: '4px' }}
+                          />
+                          <span className="text-xs text-green-600">{dayLabels[index]}</span>
+                        </div>
+                      )
+                    })
+                  )}
                 </div>
-                <div className="text-center font-bold text-green-800 text-sm">Weekly review</div>
+                <div className="text-center font-bold text-green-800 text-sm">
+                  Weekly Activity
+                </div>
+                <div className="text-center text-xs text-green-700 mt-1">
+                  {journalEntries.length > 0 
+                    ? `${journalEntries.length} total entries`
+                    : 'No activity yet'
+                  }
+                </div>
               </BentoCard>
             </motion.div>
 
