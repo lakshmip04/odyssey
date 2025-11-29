@@ -42,11 +42,23 @@ const EditJournalEntryDialog = ({ entry, isOpen, onClose, onSave }: EditJournalE
       setChatInput('')
       setActiveTab('details')
       
-      // Load place info if it exists in ai_translations
+      // Load place info if it exists in ai_translations, otherwise clear it
       if (entry.ai_translations && entry.ai_translations.placeInfo) {
         setPlaceInfo(entry.ai_translations.placeInfo as PlaceInfo)
         setActiveTab('ai-info') // Switch to AI info tab if available
+      } else {
+        setPlaceInfo(null) // Clear place info if entry doesn't have it
       }
+    } else {
+      // Clear all state when entry is null
+      setNotes('')
+      setPhotos([])
+      setAiTranslations(null)
+      setPlaceInfo(null)
+      setPhotosToDelete([])
+      setChatHistory([])
+      setChatInput('')
+      setActiveTab('details')
     }
   }, [entry])
 
