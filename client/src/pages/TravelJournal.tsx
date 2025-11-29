@@ -6,7 +6,9 @@ import { getUserJournalEntries, type TravelJournalEntry, deleteJournalEntry } fr
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import EditJournalEntryDialog from '../components/EditJournalEntryDialog'
-import { BookOpen, MapPin, Calendar, Camera, Languages, Plus, Edit, Trash2 } from 'lucide-react'
+import JournalEntryChat from '../components/JournalEntryChat'
+import { BookOpen, MapPin, Calendar, Camera, Languages, Plus, Edit, Trash2, MessageCircle } from 'lucide-react'
+import { type PlaceInfo } from '../lib/geminiApi'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { RetroGrid } from '../components/ui/retro-grid'
@@ -18,6 +20,7 @@ const TravelJournal = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [editingEntry, setEditingEntry] = useState<TravelJournalEntry | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [chattingEntry, setChattingEntry] = useState<{ entry: TravelJournalEntry; placeInfo: PlaceInfo } | null>(null)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -211,61 +214,73 @@ const TravelJournal = () => {
                         </div>
                       )}
 
-                      {entry.ai_translations && (
+                      {entry.ai_translations && entry.ai_translations.placeInfo && (
                         <div className="p-4 bg-[#BEF265]/10 rounded-lg border border-[#BEF265]/30">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Languages className="w-4 h-4 text-green-800" />
-                            <span className="text-sm font-semibold text-green-800">AI Translations</span>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <Languages className="w-4 h-4 text-green-800" />
+                              <span className="text-sm font-semibold text-green-800">AI Place Information</span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const placeInfo = entry.ai_translations?.placeInfo as PlaceInfo
+                                if (placeInfo) {
+                                  setChattingEntry({ entry, placeInfo })
+                                }
+                              }}
+                              className="h-7 text-xs"
+                            >
+                              <MessageCircle className="w-3 h-3 mr-1" />
+                              Chat
+                            </Button>
                           </div>
-                          <div className="space-y-3">
-                            {Object.entries(entry.ai_translations).map(([key, value]) => {
-                              if (key === 'generated_at') return null
-                              if (typeof value === 'object' && value !== null && 'translations' in value) {
-                                return (
-                                  <div key={key} className="space-y-2">
-                                    <p className="text-sm font-semibold text-green-800 capitalize">
-                                      {key.replace('_', ' ')}
-                                    </p>
-                                    <div className="space-y-1">
-                                      <p className="text-xs text-gray-600">
-                                        <span className="font-medium">Original:</span> {value.original}
-                                      </p>
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pl-2">
-                                        {Object.entries(value.translations).map(([lang, translation]) => (
-                                          <div key={lang} className="text-xs">
-                                            <span className="font-medium capitalize text-green-700">{lang}:</span>{' '}
-                                            <span className="text-gray-700">{translation as string}</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
+                          <div className="space-y-4">
+                            {/* Recognized Place */}
+                            <div>
+                              <p className="text-xs font-semibold text-green-800 mb-1">Recognized Place</p>
+                              <p className="text-sm font-bold text-gray-900">
+                                {(entry.ai_translations.placeInfo as PlaceInfo).recognizedPlace}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {(entry.ai_translations.placeInfo as PlaceInfo).country} • Language: {(entry.ai_translations.placeInfo as PlaceInfo).language}
+                              </p>
+                            </div>
+
+                            {/* Useful Phrases */}
+                            <div>
+                              <p className="text-xs font-semibold text-green-800 mb-2">
+                                Useful Phrases in {(entry.ai_translations.placeInfo as PlaceInfo).language}
+                              </p>
+                              <div className="space-y-1.5">
+                                {(entry.ai_translations.placeInfo as PlaceInfo).phrases.slice(0, 3).map((phrase, idx) => (
+                                  <div key={idx} className="bg-white/50 p-2 rounded border border-green-200 text-xs">
+                                    <p className="font-medium text-gray-800">{phrase.english}</p>
+                                    <p className="text-gray-700">{phrase.local}</p>
+                                    {phrase.pronunciation && (
+                                      <p className="text-gray-500 italic text-[10px]">{phrase.pronunciation}</p>
+                                    )}
                                   </div>
-                                )
-                              }
-                              if (typeof value === 'object' && value !== null) {
-                                return (
-                                  <div key={key} className="space-y-2">
-                                    <p className="text-sm font-semibold text-green-800 capitalize">
-                                      {key.replace('_', ' ')}
-                                    </p>
-                                    {Object.entries(value).map(([phrase, translations]) => (
-                                      <div key={phrase} className="text-xs space-y-1 pl-2">
-                                        <p className="font-medium text-gray-800">{phrase}</p>
-                                        <div className="pl-2 space-y-0.5">
-                                          {Object.entries(translations as Record<string, string>).map(([lang, translation]) => (
-                                            <p key={lang}>
-                                              <span className="font-medium capitalize text-green-700">{lang}:</span>{' '}
-                                              <span className="text-gray-700">{translation}</span>
-                                            </p>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )
-                              }
-                              return null
-                            })}
+                                ))}
+                                {(entry.ai_translations.placeInfo as PlaceInfo).phrases.length > 3 && (
+                                  <p className="text-xs text-gray-500">
+                                    +{(entry.ai_translations.placeInfo as PlaceInfo).phrases.length - 3} more phrases
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Famous Things */}
+                            <div>
+                              <p className="text-xs font-semibold text-green-800 mb-1">Famous Things</p>
+                              <ul className="list-disc list-inside space-y-0.5">
+                                {(entry.ai_translations.placeInfo as PlaceInfo).famousThings.slice(0, 3).map((thing, idx) => (
+                                  <li key={idx} className="text-xs text-gray-700">{thing}</li>
+                                ))}
+                              </ul>
+                            </div>
+
                             {entry.ai_translations.generated_at && (
                               <p className="text-xs text-gray-500 mt-3 pt-3 border-t border-[#BEF265]/30">
                                 Generated: {new Date(entry.ai_translations.generated_at as string).toLocaleString()}
@@ -313,6 +328,15 @@ const TravelJournal = () => {
         }}
         onSave={handleSaveEntry}
       />
+
+      {chattingEntry && (
+        <JournalEntryChat
+          entryId={chattingEntry.entry.id}
+          placeInfo={chattingEntry.placeInfo}
+          isOpen={!!chattingEntry}
+          onClose={() => setChattingEntry(null)}
+        />
+      )}
     </div>
   )
 }

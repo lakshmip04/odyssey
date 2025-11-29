@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Camera, Languages, Loader2, Upload, Trash2 } from 'lucide-react'
+import { X, Camera, Languages, Loader2, Upload, Trash2, MessageCircle, Send, Bot, User, Sparkles, MapPin, Globe, BookOpen } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
 import { Input } from './ui/input'
@@ -8,6 +8,7 @@ import { Label } from './ui/label'
 import { TravelJournalEntry, updateJournalEntry } from '../lib/travelJournalApi'
 import { uploadPhotos, deletePhoto, isSupabaseStorageUrl } from '../lib/storageApi'
 import { supabase } from '../lib/supabaseClient'
+import { generatePlaceInfo, chatAboutPlace, type PlaceInfo, type GeminiChatMessage } from '../lib/geminiApi'
 
 interface EditJournalEntryDialogProps {
   entry: TravelJournalEntry | null
@@ -23,7 +24,13 @@ const EditJournalEntryDialog = ({ entry, isOpen, onClose, onSave }: EditJournalE
   const [isUploading, setIsUploading] = useState(false)
   const [isGeneratingTranslation, setIsGeneratingTranslation] = useState(false)
   const [aiTranslations, setAiTranslations] = useState<Record<string, any> | null>(null)
+  const [placeInfo, setPlaceInfo] = useState<PlaceInfo | null>(null)
   const [photosToDelete, setPhotosToDelete] = useState<string[]>([])
+  const [activeTab, setActiveTab] = useState<'details' | 'ai-info' | 'chat'>('details')
+  const [chatHistory, setChatHistory] = useState<GeminiChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [isChatting, setIsChatting] = useState(false)
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (entry) {
@@ -31,8 +38,64 @@ const EditJournalEntryDialog = ({ entry, isOpen, onClose, onSave }: EditJournalE
       setPhotos(entry.photos || [])
       setAiTranslations(entry.ai_translations || null)
       setPhotosToDelete([]) // Reset photos to delete when entry changes
+      setChatHistory([]) // Reset chat history
+      setChatInput('')
+      setActiveTab('details')
+      
+      // Load place info if it exists in ai_translations
+      if (entry.ai_translations && entry.ai_translations.placeInfo) {
+        setPlaceInfo(entry.ai_translations.placeInfo as PlaceInfo)
+        setActiveTab('ai-info') // Switch to AI info tab if available
+      }
     }
   }, [entry])
+
+  useEffect(() => {
+    if (chatEndRef.current && activeTab === 'chat') {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chatHistory, activeTab])
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || !placeInfo || isChatting) return
+
+    const userMessage = chatInput.trim()
+    setChatInput('')
+    setIsChatting(true)
+
+    try {
+      const { response, updatedHistory } = await chatAboutPlace(
+        placeInfo,
+        chatHistory,
+        userMessage
+      )
+      setChatHistory(updatedHistory)
+    } catch (error) {
+      console.error('Error sending chat message:', error)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      let userFriendlyMessage = 'Sorry, I encountered an error. '
+      if (errorMsg.includes('Rate limit') || errorMsg.includes('quota')) {
+        userFriendlyMessage += 'Rate limit exceeded. Please wait a few minutes and try again.'
+      } else {
+        userFriendlyMessage += errorMsg
+      }
+      
+      const errorMessage: GeminiChatMessage = {
+        role: 'model',
+        content: userFriendlyMessage,
+      }
+      setChatHistory([...chatHistory, { role: 'user', content: userMessage }, errorMessage])
+    } finally {
+      setIsChatting(false)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleChatSend()
+    }
+  }
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -88,46 +151,40 @@ const EditJournalEntryDialog = ({ entry, isOpen, onClose, onSave }: EditJournalE
 
     setIsGeneratingTranslation(true)
     try {
-      // Mock AI translation - replace with actual API call
-      // This simulates generating translations for the site
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Generate place information using Gemini
+      const info = await generatePlaceInfo(
+        entry.site_name,
+        entry.location_name,
+        entry.country,
+        notes
+      )
       
-      const mockTranslations = {
-        site_name: {
-          original: entry.site_name,
-          translations: {
-            hindi: entry.site_name, // In real app, this would be translated
-            spanish: entry.site_name,
-            french: entry.site_name,
-          }
-        },
-        description: {
-          original: 'A beautiful heritage site with rich history',
-          translations: {
-            hindi: 'समृद्ध इतिहास के साथ एक सुंदर विरासत स्थल',
-            spanish: 'Un hermoso sitio patrimonial con rica historia',
-            french: 'Un magnifique site patrimonial avec une riche histoire',
-          }
-        },
-        common_phrases: {
-          'How do I get there?': {
-            hindi: 'मैं वहां कैसे पहुंचूं?',
-            spanish: '¿Cómo llego allí?',
-            french: 'Comment y arriver?',
-          },
-          'What is the history?': {
-            hindi: 'इतिहास क्या है?',
-            spanish: '¿Cuál es la historia?',
-            french: "Quelle est l'histoire?",
-          },
-        },
+      setPlaceInfo(info)
+
+      // Format translations for storage
+      const translations = {
+        placeInfo: info,
+        recognizedPlace: info.recognizedPlace,
+        country: info.country,
+        language: info.language,
+        phrases: info.phrases,
+        famousThings: info.famousThings,
+        culturalTips: info.culturalTips || [],
         generated_at: new Date().toISOString(),
       }
 
-      setAiTranslations(mockTranslations)
+      setAiTranslations(translations)
     } catch (error) {
-      console.error('Error generating translations:', error)
-      alert('Failed to generate translations. Please try again.')
+      console.error('Error generating place info:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      
+      if (errorMessage.includes('Rate limit') || errorMessage.includes('quota')) {
+        alert(`Rate limit exceeded. Please wait a few minutes before trying again.\n\nTo fix this:\n1. Wait 10-15 minutes for quota reset\n2. Upgrade your Gemini API plan at https://ai.google.dev/pricing\n3. Check your usage at https://ai.dev/usage`)
+      } else if (errorMessage.includes('API key')) {
+        alert(`API Key Error: ${errorMessage}\n\nPlease make sure VITE_GEMINI_API_KEY is set in your .env file.`)
+      } else {
+        alert(`Failed to generate place information: ${errorMessage}`)
+      }
     } finally {
       setIsGeneratingTranslation(false)
     }
@@ -188,12 +245,28 @@ const EditJournalEntryDialog = ({ entry, isOpen, onClose, onSave }: EditJournalE
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
           >
-            <Card className="w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col bg-background">
+            <Card className="w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col bg-background">
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b">
+              <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-green-50 to-purple-50">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 rounded-lg bg-white/80">
+                      <BookOpen className="w-5 h-5 text-green-700" />
+                    </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-foreground">Edit Journal Entry</h2>
-                  <p className="text-sm text-muted-foreground mt-1">{entry.site_name}</p>
+                      <h2 className="text-2xl font-bold text-gray-900">Edit Journal Entry</h2>
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                        <MapPin className="w-3 h-3" />
+                        <span>{entry.site_name}</span>
+                        {entry.location_name && (
+                          <>
+                            <span>•</span>
+                            <span>{entry.location_name}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <Button
                   variant="ghost"
@@ -205,8 +278,58 @@ const EditJournalEntryDialog = ({ entry, isOpen, onClose, onSave }: EditJournalE
                 </Button>
               </div>
 
+              {/* Tabs */}
+              <div className="flex border-b bg-white">
+                <button
+                  onClick={() => setActiveTab('details')}
+                  className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'details'
+                      ? 'text-green-700 border-b-2 border-green-700 bg-green-50'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Details & Photos
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('ai-info')}
+                  className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'ai-info'
+                      ? 'text-purple-700 border-b-2 border-purple-700 bg-purple-50'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    AI Place Info
+                    {placeInfo && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'chat'
+                      ? 'text-blue-700 border-b-2 border-blue-700 bg-blue-50'
+                      : placeInfo
+                      ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      : 'text-gray-400 cursor-not-allowed'
+                  }`}
+                  disabled={!placeInfo}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    Chat
+                    {!placeInfo && <span className="text-xs">(Generate AI info first)</span>}
+                  </div>
+                </button>
+              </div>
+
               {/* Content */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="flex-1 overflow-y-auto">
+                {activeTab === 'details' && (
+                  <div className="p-6 space-y-6">
                 {/* Notes Section */}
                 <div>
                   <Label htmlFor="notes" className="text-base font-semibold mb-2 block">
@@ -282,96 +405,225 @@ const EditJournalEntryDialog = ({ entry, isOpen, onClose, onSave }: EditJournalE
                     </div>
                   </div>
                 </div>
+              </div>
+                )}
 
-                {/* AI Translations Section */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="text-base font-semibold">
-                      AI Translations
-                    </Label>
-                    {!aiTranslations && (
+                {activeTab === 'ai-info' && (
+                  <div className="p-6 space-y-6">
+                    {!placeInfo ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="p-4 rounded-full bg-purple-100 mb-4">
+                          <Sparkles className="w-12 h-12 text-purple-600" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Generate AI Place Information</h3>
+                        <p className="text-sm text-gray-600 mb-6 max-w-md">
+                          Get intelligent insights about this place including local language phrases, famous attractions, and cultural tips.
+                        </p>
                       <Button
-                        variant="outline"
-                        size="sm"
                         onClick={handleGenerateTranslation}
                         disabled={isGeneratingTranslation}
+                          className="bg-purple-600 hover:bg-purple-700 text-white"
                       >
                         {isGeneratingTranslation ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Generating...
+                              Analyzing Place...
                           </>
                         ) : (
                           <>
-                            <Languages className="w-4 h-4 mr-2" />
-                            Generate Translations
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              Generate Place Information
                           </>
                         )}
                       </Button>
-                    )}
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Recognized Place Card */}
+                        <Card className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
+                          <div className="flex items-start gap-4">
+                            <div className="p-3 rounded-lg bg-white/80">
+                              <Globe className="w-6 h-6 text-purple-600" />
                   </div>
-                  {aiTranslations ? (
-                    <div className="p-4 bg-[#BEF265]/10 rounded-lg border border-[#BEF265]/30 space-y-3">
-                      {Object.entries(aiTranslations).map(([key, value]) => {
-                        if (key === 'generated_at') return null
-                        if (typeof value === 'object' && value !== null && 'translations' in value) {
-                          return (
-                            <div key={key} className="space-y-2">
-                              <p className="text-sm font-semibold text-green-800 capitalize">{key.replace('_', ' ')}</p>
-                              <div className="space-y-1">
-                                <p className="text-xs text-gray-600">Original: {value.original}</p>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                  {Object.entries(value.translations).map(([lang, translation]) => (
-                                    <div key={lang} className="text-xs">
-                                      <span className="font-medium capitalize">{lang}:</span>{' '}
-                                      <span className="text-gray-700">{translation as string}</span>
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-purple-700 mb-1">Recognized Place</p>
+                              <h3 className="text-2xl font-bold text-gray-900 mb-2">{placeInfo.recognizedPlace}</h3>
+                              <div className="flex items-center gap-4 text-sm text-gray-600">
+                                <div className="flex items-center gap-1">
+                                  <MapPin className="w-4 h-4" />
+                                  <span>{placeInfo.country}</span>
                                     </div>
-                                  ))}
+                                <div className="flex items-center gap-1">
+                                  <Languages className="w-4 h-4" />
+                                  <span>{placeInfo.language}</span>
                                 </div>
                               </div>
                             </div>
-                          )
-                        }
-                        if (typeof value === 'object' && value !== null) {
-                          return (
-                            <div key={key} className="space-y-2">
-                              <p className="text-sm font-semibold text-green-800 capitalize">{key.replace('_', ' ')}</p>
-                              {Object.entries(value).map(([phrase, translations]) => (
-                                <div key={phrase} className="text-xs space-y-1">
-                                  <p className="font-medium text-gray-800">{phrase}</p>
-                                  <div className="pl-2 space-y-0.5">
-                                    {Object.entries(translations as Record<string, string>).map(([lang, translation]) => (
-                                      <p key={lang}>
-                                        <span className="font-medium capitalize">{lang}:</span>{' '}
-                                        <span className="text-gray-700">{translation}</span>
-                                      </p>
+                          </div>
+                        </Card>
+
+                        {/* Useful Phrases */}
+                        <Card className="p-6">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Languages className="w-5 h-5 text-green-600" />
+                            <h4 className="text-lg font-bold text-gray-900">Useful Phrases in {placeInfo.language}</h4>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {placeInfo.phrases.map((phrase, idx) => (
+                              <div key={idx} className="p-4 bg-green-50 rounded-lg border border-green-200 hover:bg-green-100 transition-colors">
+                                <p className="text-sm font-semibold text-gray-900 mb-1">{phrase.english}</p>
+                                <p className="text-base text-gray-800 mb-1">{phrase.local}</p>
+                                {phrase.pronunciation && (
+                                  <p className="text-xs text-gray-500 italic">({phrase.pronunciation})</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+
+                        {/* Famous Things */}
+                        <Card className="p-6">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Sparkles className="w-5 h-5 text-amber-600" />
+                            <h4 className="text-lg font-bold text-gray-900">Famous Things About This Place</h4>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {placeInfo.famousThings.map((thing, idx) => (
+                              <div key={idx} className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                                <span className="text-amber-600 font-bold">{idx + 1}.</span>
+                                <p className="text-sm text-gray-700 flex-1">{thing}</p>
+                              </div>
                                     ))}
                                   </div>
+                        </Card>
+
+                        {/* Cultural Tips */}
+                        {placeInfo.culturalTips && placeInfo.culturalTips.length > 0 && (
+                          <Card className="p-6 bg-blue-50 border-blue-200">
+                            <div className="flex items-center gap-2 mb-4">
+                              <BookOpen className="w-5 h-5 text-blue-600" />
+                              <h4 className="text-lg font-bold text-gray-900">Cultural Tips</h4>
                                 </div>
+                            <ul className="space-y-2">
+                              {placeInfo.culturalTips.map((tip, idx) => (
+                                <li key={idx} className="flex items-start gap-3">
+                                  <span className="text-blue-600 mt-1">•</span>
+                                  <p className="text-sm text-gray-700 flex-1">{tip}</p>
+                                </li>
                               ))}
+                            </ul>
+                          </Card>
+                        )}
+
+                        {aiTranslations?.generated_at && (
+                          <p className="text-xs text-gray-500 text-center">
+                            Generated: {new Date(aiTranslations.generated_at as string).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'chat' && placeInfo && (
+                  <div className="flex flex-col h-full">
+                    {/* Chat Messages */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 min-h-[400px]">
+                      {chatHistory.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                          <div className="p-4 rounded-full bg-blue-100 mb-4">
+                            <Bot className="w-12 h-12 text-blue-600" />
+                          </div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">Ask About {placeInfo.recognizedPlace}</h3>
+                          <p className="text-sm text-gray-600 mb-4 max-w-md">
+                            I can help you learn more about this place! Ask me about history, culture, food, attractions, or anything else.
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-lg">
+                            {[
+                              "What's the best time to visit?",
+                              "What should I eat here?",
+                              "Tell me about the history",
+                              "What are must-see attractions?"
+                            ].map((suggestion, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => setChatInput(suggestion)}
+                                className="p-2 text-xs bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                              >
+                                {suggestion}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        chatHistory.map((message, index) => (
+                          <motion.div
+                            key={index}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                          >
+                            {message.role === 'model' && (
+                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                <Bot className="w-4 h-4 text-blue-600" />
+                              </div>
+                            )}
+                            <div
+                              className={`max-w-[75%] rounded-2xl p-4 ${
+                                message.role === 'user'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white text-gray-900 border border-gray-200 shadow-sm'
+                              }`}
+                            >
+                              <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                             </div>
-                          )
-                        }
-                        return null
-                      })}
-                      {aiTranslations.generated_at && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          Generated: {new Date(aiTranslations.generated_at).toLocaleString()}
-                        </p>
+                            {message.role === 'user' && (
+                              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                                <User className="w-4 h-4 text-gray-600" />
+                              </div>
+                            )}
+                          </motion.div>
+                        ))
                       )}
+                      {isChatting && (
+                        <div className="flex gap-3 justify-start">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <Bot className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div className="bg-white rounded-2xl p-4 border border-gray-200">
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                          </div>
+                        </div>
+                      )}
+                      <div ref={chatEndRef} />
                     </div>
-                  ) : (
-                    <div className="p-4 bg-gray-50 rounded-lg border border-dashed text-center">
-                      <Languages className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-600 mb-2">
-                        Generate AI translations for this site
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Get translations of site information and common phrases in multiple languages
-                      </p>
+
+                    {/* Chat Input */}
+                    <div className="p-4 border-t bg-white">
+                      <div className="flex gap-2">
+                        <Input
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          placeholder="Ask about this place..."
+                          disabled={isChatting}
+                          className="flex-1"
+                        />
+                        <Button
+                          onClick={handleChatSend}
+                          disabled={!chatInput.trim() || isChatting}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          {isChatting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Send className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                     </div>
                   )}
-                </div>
               </div>
 
               {/* Footer */}
